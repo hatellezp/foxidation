@@ -1,0 +1,67 @@
+//
+// Created by intellij-pest on 2021-08-17
+// grammar
+// Author: horacio
+//
+
+WHITESPACE = _{ " " }
+NEW_LINE = _{ "\n" }
+// INLINE_COMMENT = _{ "//" ~ ANY* }
+
+inner_number = @{ ASCII_NONZERO_DIGIT ~ ASCII_DIGIT* }
+number = { ("-")? ~ inner_number }
+char = { ASCII_ALPHANUMERIC | "_" | number}
+
+relation_name = @{ ASCII_ALPHA_UPPER ~ char* }
+
+lower_word = @{ ASCII_ALPHA_LOWER ~ char* }
+function_name = { lower_word }
+variable_name = { "var_" ~ lower_word }
+constant_name = { "const_" ~ lower_word }
+formula_name = { lower_word }
+
+variable_constant_periods = { (variable_name | constant_name) ~ (", " ~ (variable_name | constant_name))* }
+variable_periods = { variable_name ~ ("," ~ variable_name)* }
+constant_periods = { constant_name ~ ("," ~ constant_name)* }
+
+relation_declaration = { "relation" ~ ":" ~ relation_name ~ "," ~ number }
+function_declaration = { "function" ~ ":" ~ function_name ~ "," ~ number }
+
+constant_declaration = { constant_name ~ "=" ~ number }
+
+function_statement = { function_name ~ "(" ~ variable_constant_periods ~ ")" }
+
+term = { variable_name | constant_name | number | function_statement }
+
+equality_statement = { term ~ "=" ~ term }
+relation_statement = { relation_name ~ "(" ~ term ~ ("," ~ term)* ~ ")" }
+
+and_expression = { "(" ~ expression ~ ")" ~ "AND" ~ expression }
+or_expression = { "(" ~ expression ~ ")" ~ "OR" ~ expression }
+implies_expression = { "(" ~ expression ~ ")" ~ "IMPLIES" ~ expression }
+equivalent_expression = { "(" ~ expression ~ ")" ~ "EQUIVALENT" ~ expression }
+forall_expression = { "FORALL" ~ variable_periods ~ expression }
+exists_expression = { "EXISTS" ~ variable_periods ~ expression }
+
+expression = {
+    equality_statement
+    | relation_statement
+    | and_expression
+    | or_expression
+    | implies_expression
+    | equivalent_expression
+    | forall_expression
+    | exists_expression
+}
+
+expression_definition = { lower_word ~ ("(" ~ variable_constant_periods ~ ")")? ~ ":-" ~ expression }
+
+any_statement = { relation_declaration | function_declaration | constant_declaration | expression | expression_definition }
+
+main = {
+    SOI
+    ~ any_statement
+    ~ (NEW_LINE+ ~ any_statement)*
+    ~ NEW_LINE*
+    ~ EOI
+}
