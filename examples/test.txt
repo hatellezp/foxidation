@@ -1,0 +1,19 @@
+relation: R     , 2
+relation: S,3
+function: f,2
+
+const_c = 3
+const_d = 4
+R(var_x, 555)
+R(const_c, var_other_x)
+R(const_a, const_b) AND S(const_d, const_a, const_b)
+
+phi(var_x, var_y) :- var_x = var_y
+
+NOT S(2,3,4)
+var_this_x = var_that_y
+(FORALL var_x, var_y, var_ovtherx R(var_x, var_y) AND R(var_x, var_otherx     )) IMPLIES S(var_x, var_otherx, var_y)
+EXISTS var_x R(var_x, const_a)
+
+const_a = 2
+const_b = -44

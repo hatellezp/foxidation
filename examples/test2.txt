@@ -1,0 +1,9 @@
+relation :  R,2
+relation : S,4
+
+R(2,4)
+S(const_a, 3,5,2)
+
+R(4, 2, const_b) AND S(1,2,3,4)
+
+FORALL var_x, var_y R(var_x, var_y) IMPLIES (EXISTS var_u, var_v S(var_u, var_v, var_x, var_y))
