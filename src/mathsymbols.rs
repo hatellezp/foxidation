@@ -14,3 +14,4 @@ pub const IMPLIES_LEFT_CHAR: char = '\u{21D0}';
 pub const IMPLIES_RIGHT_CHAR: char = '\u{21D2}';
 pub const EQUIVALENT_CHAR: char = '\u{21D4}';
 pub const TRIPLE_BAR_CHAR: char = '\u{2261}';
+pub const NOT: char = '\u{00AC}';

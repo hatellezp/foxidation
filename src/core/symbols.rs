@@ -187,6 +187,16 @@ impl Literal {
         }
     }
 
+    pub fn name(&self) -> &str {
+        use Literal::*;
+
+        match self {
+            Var(s) | Constant(s) | RelName(s, _) | FuncName(s, _) | FormName(s, _) => s,
+            Integer(_) => "",
+            Function(li_box, _) => li_box.deref().name(),
+        }
+    }
+
     pub fn vec_of_literals_to_str(v: &[Literal]) -> String {
         let literals: Vec<String> = v.iter().map(|x| format!("{}", x)).collect::<Vec<String>>();
         literals.join(",")
@@ -223,6 +233,7 @@ pub enum Expression {
     BasicEquality(Literal, Literal),
     PartialEquality(Literal, Box<Expression>),
     GeneralEquality(Box<Expression>, Box<Expression>),
+    Not(Box<Expression>),
     And(Vec<Expression>),
     Or(Vec<Expression>),
     Implies(Box<Expression>, Box<Expression>),
@@ -245,6 +256,7 @@ impl Display for Expression {
             Expression::BasicEquality(a, b) => write!(f, "{} = {}", a, b),
             Expression::PartialEquality(a, b) => write!(f, "{} = {}", a, b.deref()),
             Expression::GeneralEquality(a, b) => write!(f, "{} = {}", a.deref(), b.deref()),
+            Expression::Not(a) => write!(f, "{} ({})", NOT, a.deref()),
             Expression::And(expressions) | Expression::Or(expressions) => {
                 let ands = expressions
                     .iter()
@@ -302,6 +314,10 @@ impl Expression {
 
     pub fn ngeneralequality(a: Expression, b: Expression) -> Expression {
         Expression::GeneralEquality(Box::new(a), Box::new(b))
+    }
+
+    pub fn nnot(a: Expression) -> Expression {
+        Expression::Not(Box::new(a))
     }
 
     pub fn nand(expressions: Vec<Expression>) -> Expression {

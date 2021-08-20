@@ -4,28 +4,38 @@
 // Author: horacio
 //
 
+
 WHITESPACE = _{ " " }
 NEW_LINE = _{ "\n" }
 // INLINE_COMMENT = _{ "//" ~ ANY* }
 
+// strictly positive integer
 inner_number = @{ ASCII_NONZERO_DIGIT ~ ASCII_DIGIT* }
+// a possibly negative integer
 number = { ("-")? ~ inner_number }
+
+// names
 char = { ASCII_ALPHANUMERIC | "_" | number}
 
+// must begin with an upper letter
 relation_name = @{ ASCII_ALPHA_UPPER ~ char* }
 
+// must begin with a lower letter
 lower_word = @{ ASCII_ALPHA_LOWER ~ char* }
+
 function_name = { lower_word }
 variable_name = { "var_" ~ lower_word }
 constant_name = { "const_" ~ lower_word }
 formula_name = { lower_word }
 
+// several type of words separated by periods
 variable_constant_periods = { (variable_name | constant_name) ~ (", " ~ (variable_name | constant_name))* }
 variable_periods = { variable_name ~ ("," ~ variable_name)* }
 constant_periods = { constant_name ~ ("," ~ constant_name)* }
 
-relation_declaration = { "relation" ~ ":" ~ relation_name ~ "," ~ number }
-function_declaration = { "function" ~ ":" ~ function_name ~ "," ~ number }
+// no negatives arities
+relation_declaration = { "relation" ~ ":" ~ relation_name ~ "," ~ inner_number }
+function_declaration = { "function" ~ ":" ~ function_name ~ "," ~ inner_number }
 
 constant_declaration = { constant_name ~ "=" ~ number }
 
@@ -36,30 +46,35 @@ term = { variable_name | constant_name | number | function_statement }
 equality_statement = { term ~ "=" ~ term }
 relation_statement = { relation_name ~ "(" ~ term ~ ("," ~ term)* ~ ")" }
 
-and_expression = { "(" ~ expression ~ ")" ~ "AND" ~ expression }
-or_expression = { "(" ~ expression ~ ")" ~ "OR" ~ expression }
-implies_expression = { "(" ~ expression ~ ")" ~ "IMPLIES" ~ expression }
-equivalent_expression = { "(" ~ expression ~ ")" ~ "EQUIVALENT" ~ expression }
+
+expression = { implies_expression | forall_expression | exists_expression }
+
+implies_expression = { equivalent_expression ~ ("IMPLIES" ~ equivalent_expression)? }
+
+equivalent_expression = { or_expression ~ ("EQUIVALENT" ~ or_expression)? }
+
+or_expression = { and_expression ~ ("OR" ~ and_expression)* }
+
+and_expression = { not_expression ~ ("AND" ~ not_expression)* }
+
+not_literal = { "NOT" }
+not_expression = { (not_literal)? ~ basic_expression }
+
+basic_expression = { equality_statement | relation_statement | parenthesis_expression }
+
+parenthesis_expression = { "(" ~ expression ~ ")" }
+
 forall_expression = { "FORALL" ~ variable_periods ~ expression }
 exists_expression = { "EXISTS" ~ variable_periods ~ expression }
 
-expression = {
-    equality_statement
-    | relation_statement
-    | and_expression
-    | or_expression
-    | implies_expression
-    | equivalent_expression
-    | forall_expression
-    | exists_expression
-}
 
-expression_definition = { lower_word ~ ("(" ~ variable_constant_periods ~ ")")? ~ ":-" ~ expression }
+expression_definition = { lower_word ~ ("(" ~ variable_periods ~ ")")? ~ ":-" ~ expression }
 
 any_statement = { relation_declaration | function_declaration | constant_declaration | expression | expression_definition }
 
 main = {
     SOI
+    ~ NEW_LINE*
     ~ any_statement
     ~ (NEW_LINE+ ~ any_statement)*
     ~ NEW_LINE*
