@@ -1,3 +1,4 @@
+pub mod cli;
 pub mod parser;
 
-use crate::core::symbols::{Literal, Expression, Type};
+use crate::core::symbols::{Expression, Literal, Type};

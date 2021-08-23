@@ -2,33 +2,56 @@ use std::collections::HashSet;
 use std::fs;
 use std::hash::Hash;
 
-use crate::core::symbols::{Expression, Literal};
 use crate::core::symbols::Type;
+use crate::core::symbols::{Expression, Literal};
+use crate::parser::cli::Cli;
 
-mod parser;
 mod core;
 mod mathsymbols;
+mod parser;
 
 extern crate pest;
 #[macro_use]
 extern crate pest_derive;
 
+// for cli interface, need to import it so the interface module works
+use structopt::StructOpt;
+
+// colors in the terminal
+use colored::Colorize;
+
 fn main() {
     println!("Hello, world!");
 
-    let unparsed_file = fs::read_to_string("test2.txt").expect("cannot read file");
+    let args = Cli::from_args();
 
-    let (context, expressions) = parser::parser::parse_file(&unparsed_file);
+    let filename_path_op: Option<std::path::PathBuf> = args.filename_path;
 
-    println!("===============================\nliterals\n===============================\n");
-    for item in context.iter() {
-        println!("{:?}", item);
-    }
+    if let Some(filename_path) = filename_path_op {
+        let filename = filename_path.to_str().unwrap();
 
-    println!("------------------------------------------------------------------------");
+        let unparsed_file = fs::read_to_string(filename).expect("cannot read file");
 
-    println!("===============================\nexpressions\n===============================\n");
-    for item in expressions.iter() {
-        println!("{:?}", item);
+        let (context, expressions) = parser::parser::parse_file(&unparsed_file);
+
+        println!("===============================\nliterals\n===============================\n");
+        for item in context.iter() {
+            println!("{:?}", item);
+        }
+
+        println!("------------------------------------------------------------------------");
+
+        println!("===============================\nexpressions\n===============================\n");
+        for item in expressions.iter() {
+            println!(
+                "{}, is pure propositional: {}",
+                item,
+                item.is_pure_propositional()
+            );
+
+            if item.is_pure_propositional() {
+                println!("    pure: {}", item.to_pure_propositional().unwrap());
+            }
+        }
     }
 }

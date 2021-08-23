@@ -1,7 +1,10 @@
 use std::fmt::Result;
 use std::fmt::{Display, Formatter};
 
+use colored::{Colorize, ColoredString};
+
 use crate::mathsymbols::*;
+use std::env::var;
 use std::hash::{Hash, Hasher};
 use std::ops::Deref;
 
@@ -15,9 +18,11 @@ pub enum Type {
     FormName,
     Function,
     Relation,
-    Equality,
+    BasicEquality,
     PartialEquality,
-    GlobalEquality,
+    GeneralEquality,
+    Definition,
+    Negation,
     And,
     Or,
     Implies,
@@ -118,19 +123,19 @@ impl Hash for Literal {
 impl Display for Literal {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         match self {
-            Literal::Var(v) => write!(f, "'{}'", *v),
-            Literal::Integer(i) => write!(f, "{}", i),
-            Literal::Constant(c) => write!(f, "'{}'", *c),
-            Literal::RelName(r, _) => write!(f, "{}", *r), //[{}]", *r, a),
-            Literal::FuncName(r, _) => write!(f, "{}", *r), //[{}]", *r, a),
-            Literal::FormName(r, _) => write!(f, "{}", *r),
+            Literal::Var(v) => write!(f, "'{}'", v.blue()),
+            Literal::Integer(i) => write!(f, "{}", i.to_string().blue()),
+            Literal::Constant(c) => write!(f, "'{}'", c.blue()),
+            Literal::RelName(r, _) => write!(f, "{}", r.red()), //[{}]", *r, a),
+            Literal::FuncName(r, _) => write!(f, "{}", r.red()), //[{}]", *r, a),
+            Literal::FormName(r, _) => write!(f, "{}", r.red()),
             Literal::Function(a, others) => write!(
                 f,
                 "{}({})",
-                a,
+                a.deref().to_string().red(),
                 others
                     .iter()
-                    .map(|x| format!("{}", x))
+                    .map(|x| format!("{}", x).blue().to_string())
                     .collect::<Vec<String>>()
                     .join(",")
             ),
@@ -197,8 +202,16 @@ impl Literal {
         }
     }
 
-    pub fn vec_of_literals_to_str(v: &[Literal]) -> String {
-        let literals: Vec<String> = v.iter().map(|x| format!("{}", x)).collect::<Vec<String>>();
+    pub fn vec_of_literals_to_str(v: &[Literal], formatting: bool) -> String {
+        let literals: Vec<String>;
+
+        if formatting {
+            literals = v.iter().map(|x| format!("{}", x).blue().to_string()).collect::<Vec<String>>();
+        } else {
+            literals = v.iter().map(|x| format!("{}", x)).collect::<Vec<String>>();
+        }
+
+
         literals.join(",")
     }
 
@@ -228,6 +241,8 @@ impl Literal {
 
 #[derive(Debug, Clone)]
 pub enum Expression {
+    True,
+    False,
     Relation(Literal, Vec<Literal>),
     Definition(Literal, Vec<Literal>, Box<Expression>),
     BasicEquality(Literal, Literal),
@@ -244,51 +259,221 @@ pub enum Expression {
 
 impl Display for Expression {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        match self {
-            Expression::Relation(name, literals) => {
-                write!(f, "{}({})", name, Literal::vec_of_literals_to_str(literals))
-            },
-            Expression::Definition(literal, literals, expression) => {
-                let vars = literals.iter().map(|x| format!("{}", x)).collect::<Vec<String>>().join(",");
-
-                write!(f, "{}({}) = {}", literal, vars, expression.deref())
-            },
-            Expression::BasicEquality(a, b) => write!(f, "{} = {}", a, b),
-            Expression::PartialEquality(a, b) => write!(f, "{} = {}", a, b.deref()),
-            Expression::GeneralEquality(a, b) => write!(f, "{} = {}", a.deref(), b.deref()),
-            Expression::Not(a) => write!(f, "{} ({})", NOT, a.deref()),
-            Expression::And(expressions) | Expression::Or(expressions) => {
-                let ands = expressions
-                    .iter()
-                    .map(|x| format!("{}", x))
-                    .collect::<Vec<String>>();
-
-                let separator = match self {
-                    Expression::And(_) => format!(" {} ", AND_CHAR),
-                    Expression::Or(_) => format!(" {} ", OR_CHAR),
-                    _ => panic!("cannot be here !"),
-                };
-
-                write!(f, "{}", ands.join(&separator))
-            }
-            Expression::Implies(a, b) => write!(f, "{} {} {}", a, IMPLIES_RIGHT_CHAR, b),
-            Expression::Equivalent(a, b) => write!(f, "{} {} {}", a, EQUIVALENT_CHAR, b),
-            Expression::Exists(literals, expression) | Expression::ForAll(literals, expression) => {
-                let vars = Literal::vec_of_literals_to_str(literals);
-
-                let quantifier = match self {
-                    Expression::Exists(_, _) => EXISTS_CHAR,
-                    Expression::ForAll(_, _) => FORALL_CHAR,
-                    _ => panic!("cannot be here !"),
-                };
-
-                write!(f, "{} {} {}", quantifier, vars, expression)
-            }
-        }
+        write!(f, "{}", self.to_string_complex(true))
     }
 }
 
 impl Expression {
+    pub fn typ(&self) -> Type {
+        use Expression::*;
+
+        match self {
+            True | False => Type::Constant,
+            Relation(_, _) => Type::Relation,
+            Definition(_, _, _) => Type::Definition,
+            BasicEquality(_, _) => Type::BasicEquality,
+            PartialEquality(_, _) => Type::PartialEquality,
+            GeneralEquality(_, _) => Type::GeneralEquality,
+            And(_) => Type::And,
+            Or(_) => Type::And,
+            Not(_) => Type::Negation,
+            Implies(_, _) => Type::Implies,
+            Equivalent(_, _) => Type::Equivalent,
+            ForAll(_, _) => Type::ForAll,
+            Exists(_, _) => Type::Exists,
+        }
+    }
+
+    pub fn is_complex_expression(&self) -> bool {
+        use Expression::*;
+
+        match self {
+            True | False | Relation(_, _) | Definition(_, _, _) => false,
+            And(exprs) | Or(exprs) => exprs.len() != 0,
+            _ => true,
+        }
+    }
+
+    pub fn to_string_complex(&self, is_top_expression: bool) -> String {
+        match self {
+            Expression::True => format!("{}", TOP_CHAR).green().to_string(),
+            Expression::False => format!("{}", BOT_CHAR).green().to_string(),
+            Expression::Relation(name, literals) => {
+
+                let vars = Literal::vec_of_literals_to_str(literals, true);
+
+                format!("{}({})", name.to_string().red().to_string(), vars)
+            }
+            Expression::Definition(literal, literals, expression) => {
+
+                let vars = Literal::vec_of_literals_to_str(literals, true);
+
+                let expr_string = expression.deref().to_string_complex(false);
+                format!("{}({}) {} {}", literal.to_string().red().to_string(), vars, TRIPLE_BAR_CHAR.to_string().yellow().to_string(), expr_string)
+            }
+            Expression::BasicEquality(a, b) => format!("{} {} {}", a, "=".yellow(), b),
+            Expression::PartialEquality(a, b) => {
+                format!("{} {} {}", a, "=".yellow(), b.deref().to_string_complex(false))
+            }
+            Expression::GeneralEquality(a, b) => format!(
+                "{} {} {}",
+                a.deref().to_string_complex(false),
+                "=".yellow(),
+                b.deref().to_string_complex(false)
+            ),
+            Expression::Not(a) => match a.deref().is_complex_expression() {
+                true => format!("{}({})", NOT.to_string().yellow(), a.deref().to_string_complex(false)),
+                false => format!("{}{}", NOT.to_string().yellow(), a.deref().to_string_complex(false)),
+            },
+            Expression::And(expressions) | Expression::Or(expressions) => {
+                let ands = expressions
+                    .iter()
+                    .map(|x| x.to_string_complex(false))
+                    .collect::<Vec<String>>();
+
+                let separator = match self {
+                    Expression::And(_) => format!(" {} ", AND_CHAR).yellow().to_string(),
+                    Expression::Or(_) => format!(" {} ", OR_CHAR).yellow().to_string(),
+                    _ => panic!("cannot be here !"),
+                };
+
+                match (expressions.len(), self.typ(), is_top_expression) {
+                    (0, Type::And, _) => format!("{}", TOP_CHAR).green().to_string(),
+                    (0, Type::Or, _) => format!("{}", BOT_CHAR).green().to_string(),
+                    (1, _, _) => format!("{}", expressions.get(0).unwrap()),
+                    (_, _, false) => format!("({})", ands.join(&separator)),
+                    (_, _, true) => format!("{}", ands.join(&separator)),
+                }
+            }
+            Expression::Implies(a, b) => format!(
+                "{} {} {}",
+                a.deref().to_string_complex(false),
+                IMPLIES_RIGHT_CHAR.to_string().yellow().to_string(),
+                b.deref().to_string_complex(false)
+            ),
+            Expression::Equivalent(a, b) => format!(
+                "{} {} {}",
+                a.deref().to_string_complex(false),
+                EQUIVALENT_CHAR.to_string().yellow().to_string(),
+                b.deref().to_string_complex(false)
+            ),
+            Expression::Exists(literals, expression) | Expression::ForAll(literals, expression) => {
+                let vars = Literal::vec_of_literals_to_str(literals, true);
+
+                let quantifier = match self {
+                    Expression::Exists(_, _) => EXISTS_CHAR.to_string().magenta().to_string(),
+                    Expression::ForAll(_, _) => FORALL_CHAR.to_string().magenta().to_string(),
+                    _ => panic!("cannot be here !"),
+                };
+
+                format!(
+                    "{} {} {}",
+                    quantifier,
+                    vars,
+                    expression.deref().to_string_complex(false)
+                )
+            }
+        }
+    }
+
+    /// here a pure propositional expression is any expression with relation
+    /// of arities equal to zero and logical connectives,
+    /// no constants, no variables, no function symbols and NO quantifiers
+    pub fn is_pure_propositional(&self) -> bool {
+        use Expression::*;
+        use Literal::*;
+
+        match self {
+            True | False => true,
+            Relation(relname, literals) => match (relname, literals.len()) {
+                (RelName(_, arity), 0) => true,
+                (_, _) => false,
+            },
+            Definition(_, _, _) => false,
+            BasicEquality(_, _) | PartialEquality(_, _) | GeneralEquality(_, _) => false,
+            Implies(a, b) | Equivalent(a, b) => {
+                a.deref().is_pure_propositional() && b.deref().is_pure_propositional()
+            }
+            ForAll(_, _) | Exists(_, _) => false,
+            And(exprs) | Or(exprs) => exprs.iter().all(|x| x.is_pure_propositional()),
+            Not(a) => a.deref().is_pure_propositional(),
+        }
+    }
+
+    pub fn to_pure_propositional(&self) -> Option<Expression> {
+        use Expression::*;
+        use Literal::*;
+
+        match self {
+            True => Some(True),
+            False => Some(False),
+            Relation(relname, literals) => {
+                if relname.arity() == 0 && relname.typ() == Type::RelName {
+                    Some(Relation(relname.clone(), vec![]))
+                } else {
+                    None
+                }
+            },
+            Definition(_, _, _) => None,
+            BasicEquality(_, _) | PartialEquality(_, _) | GeneralEquality(_, _) => None,
+            Not(a) => {
+                match a.to_pure_propositional() {
+                    Some(a_pure) => Some(Not(Box::new(a_pure))),
+                    _ => None,
+                }
+            },
+            And(exprs) | Or(exprs) => {
+                let exprs_pure = exprs.iter().map(|x| x.to_pure_propositional()).collect::<Vec<Option<Expression>>>();
+
+                if exprs_pure.iter().any(|x| x.is_none()) {
+                    None
+                } else {
+                    match self {
+                        And(_) => Some(And(exprs_pure.iter().map(|x| x.as_ref().unwrap().clone()).collect::<Vec<Expression>>())),
+                        Or(_) => Some(Or(exprs_pure.iter().map(|x| x.as_ref().unwrap().clone()).collect::<Vec<Expression>>())),
+                        _ => unreachable!(),
+                    }
+                }
+            },
+            Implies(a, b) => {
+                match (a.deref().to_pure_propositional(), b.deref().to_pure_propositional()) {
+                    (Some(a_pure), Some(b_pure)) => {
+                        let not_a_pure = Expression::nnot(a_pure);
+                        let or_pure = Expression::nor(vec![not_a_pure, b_pure]);
+
+                        Some(or_pure)
+                    },
+                    (_, _) => None,
+                }
+            },
+            Equivalent(a, b) => {
+                match (a.deref().to_pure_propositional(), b.deref().to_pure_propositional()) {
+                    (Some(a_pure), Some(b_pure)) => {
+                        let not_a__pure = Expression::nnot(a_pure.clone());
+                        let not_b_pure = Expression::nnot(b_pure.clone());
+
+                        let not_a_or_b = Expression::nor(vec![not_a__pure, b_pure]);
+                        let not_b_or_a = Expression::nor(vec![not_b_pure, a_pure]);
+
+                        let and_pure = Expression::nand(vec![not_a_or_b, not_b_or_a]);
+
+                        Some(and_pure)
+                    },
+                    (_, _) => None,
+                }
+            },
+            Exists(_, _) | ForAll(_, _) => None,
+        }
+    }
+
+    pub fn ntrue() -> Expression {
+        Expression::True
+    }
+
+    pub fn nfalse() -> Expression {
+        Expression::False
+    }
+
     pub fn nrelation(rel_name: &Literal, literals: &[Literal]) -> Option<Expression> {
         let there_are_higher_symbols = literals.iter().any(|x| x.is_higher_symbol());
 
