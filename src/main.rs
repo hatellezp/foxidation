@@ -1,9 +1,9 @@
-use std::collections::HashSet;
-use std::fs;
-use std::hash::Hash;
 
-use crate::core::symbols::Type;
-use crate::core::symbols::{Expression, Literal};
+use std::fs;
+
+
+
+
 use crate::parser::cli::Cli;
 
 mod core;
@@ -18,7 +18,7 @@ extern crate pest_derive;
 use structopt::StructOpt;
 
 // colors in the terminal
-use colored::Colorize;
+
 
 fn main() {
     println!("Hello, world!");
@@ -36,7 +36,7 @@ fn main() {
 
         println!("===============================\nliterals\n===============================\n");
         for item in context.iter() {
-            println!("{:?}", item);
+            println!("{:?}: {}", item, item);
         }
 
         println!("------------------------------------------------------------------------");

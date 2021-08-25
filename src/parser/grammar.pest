@@ -21,35 +21,36 @@ relation_name = @{ ASCII_ALPHA_UPPER ~ char* }
 // must begin with a lower letter
 lower_word = @{ ASCII_ALPHA_LOWER ~ char* }
 
-function_name = { lower_word }
-variable_name = { "var_" ~ lower_word }
-constant_name = { "const_" ~ lower_word }
-formula_name = { lower_word }
+function_name = @{ "func_" ~ lower_word }
+variable_name = @{ "var_" ~ lower_word }
+constant_name = @{ "const_" ~ lower_word }
+formula_name = @{ "form_" ~ lower_word }
 
 // several type of words separated by periods
-variable_constant_periods = { (variable_name | constant_name) ~ (", " ~ (variable_name | constant_name))* }
+variable_constant_periods = { (variable_name | constant_name | number) ~ (", " ~ (variable_name | constant_name | number))* }
 variable_periods = { variable_name ~ ("," ~ variable_name)* }
 constant_periods = { constant_name ~ ("," ~ constant_name)* }
 
 // no negatives arities
-ZERO = @{ "0" }
-relation_declaration = { "relation" ~ ":" ~ relation_name ~ "," ~ (inner_number | ZERO ) }
-function_declaration = { "function" ~ ":" ~ function_name ~ "," ~ inner_number }
-
-constant_declaration = { constant_name ~ "=" ~ number }
+ZERO = { "0" }
+relation_declaration = { "relation" ~ ":" ~ relation_name ~ "," ~ ( inner_number | ZERO ) }
+function_declaration = { "function" ~ ":" ~ function_name ~ "," ~ ( inner_number | ZERO ) }
+constant_declaration = { constant_name ~ ":=" ~ number }
 
 function_statement = { function_name ~ "(" ~ variable_constant_periods ~ ")" }
 
 term = { variable_name | constant_name | number | function_statement }
-
 term_tuple = { ("(" ~ term ~ ("," ~ term)* ~ ")") | ("(" ~ ")") }
 
-equality_statement = { term ~ "=" ~ term }
-relation_statement = { relation_name ~ term_tuple }
+equality_statement = { (term ~ "=" ~ term) }
 
-relation_extended_statement = { relation_name ~ "=" ~ "{" ~ term_tuple ~ ("," ~ term_tuple)* ~ "}" }
+relation_statement = { relation_name ~ term_tuple }
+relation_extended_statement = { relation_name ~ ":=" ~ "{" ~ term_tuple ~ ("," ~ term_tuple)* ~ "}" }
 
 expression = { implies_expression | forall_expression | exists_expression }
+
+forall_expression = { ^"FORALL" ~ variable_periods ~ expression }
+exists_expression = { ^"EXISTS" ~ variable_periods ~ expression }
 
 implies_expression = { equivalent_expression ~ (^"IMPLIES" ~ equivalent_expression)? }
 
@@ -66,19 +67,16 @@ basic_expression = { equality_statement | relation_statement | parenthesis_expre
 
 parenthesis_expression = { "(" ~ expression ~ ")" }
 
-forall_expression = { ^"FORALL" ~ variable_periods ~ expression }
-exists_expression = { ^"EXISTS" ~ variable_periods ~ expression }
+true_expression = { ^"TRUE" }
+false_expression = { ^"FALSE" }
 
-true_expression = { ^"true" }
-false_expression = { ^"false" }
+expression_definition = { formula_name ~ ("(" ~ variable_periods ~ ")")? ~ ":=" ~ expression }
 
-expression_definition = { lower_word ~ ("(" ~ variable_periods ~ ")")? ~ ":-" ~ expression }
-
-any_statement = { relation_declaration | function_declaration | constant_declaration | expression | expression_definition | relation_extended_statement }
+any_statement = { (relation_declaration | function_declaration | constant_declaration | expression | expression_definition | relation_extended_statement) ~ ";" }
 
 main = {
     SOI
-    ~ (any_statement ~ ";")
-    ~ (any_statement ~ ";")*
+    ~ any_statement
+    ~ any_statement*
     ~ EOI
 }
