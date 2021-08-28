@@ -1,0 +1,16 @@
+relation: S,0;
+relation: T,0;
+relation: R,0;
+relation: Q,0;
+relation: P,0;
+
+S() or T();
+T() or not T();
+T() implies Q();
+P() implies not Q();
+R() equivalent (T() and Q());
+
+Q() or false;
+
+
+((S() implies T()) or (S() implies R()))  equivalent (S() implies (T() or R()));

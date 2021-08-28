@@ -1,0 +1,19 @@
+relation: R,1;
+R(3);
+R(const_b);
+relation: S,0;
+function: func_f, 2;
+
+R := { (4), (5) };
+
+const_a = var_x;
+
+func_f(1, const_a) = func_f(4, var_y);
+
+const_a := 4;
+
+S() or not S();
+
+S() and not R(1);
+
+form_phi(var_x, var_y) := S() or R(var_y) and R(var_x);

@@ -1,9 +1,25 @@
-relation :  R,2
-relation : S,4
+relation :  R,2;
+relation : S,4;
+relation: T,0;
+relation: Q,0;
 
-R(2,4)
-S(const_a, 3,5,2)
+function : f,2;
+function : g,1;
 
-R(4, 2, const_b) AND S(1,2,3,4)
 
-FORALL var_x, var_y R(var_x, var_y) IMPLIES (EXISTS var_u, var_v S(var_u, var_v, var_x, var_y))
+
+T();
+not T();
+
+R(2,4);
+S(const_a, 3,5,2);
+
+R(4, 2) AND S(1,2,3,4);
+
+R = { (2, 4), (const_b, 12), (var_x, var_other_var) };
+
+T() and not Q() or not T();
+
+(R(4,5) OR true AND False) AND false or False;
+
+FORALL var_x, var_y R(var_x, var_y) implies (EXISTS var_u, var_v S(var_u, var_v, var_x, var_y) AND R(const_b, 44));
