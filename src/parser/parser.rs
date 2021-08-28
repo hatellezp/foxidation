@@ -5,9 +5,9 @@ use std::hash::Hash;
 use pest::iterators::Pair;
 use pest::Parser;
 
-use crate::core::symbols::Type;
-
-use crate::core::symbols::{Expression, Literal};
+use crate::core::expression::Expression;
+use crate::core::literal::Literal;
+use crate::core::types::Type;
 
 #[derive(Parser)]
 #[grammar = "parser/grammar.pest"]

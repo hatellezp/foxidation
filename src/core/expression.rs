@@ -1,354 +1,17 @@
+use std::cmp::Ordering;
+use std::collections::HashSet;
 use std::fmt::Result;
 use std::fmt::{Display, Formatter};
-
-use colored::{Colorize, ColoredString};
-
-use crate::mathsymbols::*;
-
 use std::hash::{Hash, Hasher};
-use std::ops::Deref;
-use std::collections::HashSet;
 use std::iter::FromIterator;
-use std::cmp::Ordering;
+use std::ops::Deref;
 
-#[derive(Debug, Hash, Copy, Clone, Eq, PartialEq)]
-pub enum Type {
-    Variable,
-    Integer,
-    Constant,
-    RelName,
-    FuncName,
-    FormName,
-    Function,
-    Relation,
-    BasicEquality,
-    PartialEquality,
-    GeneralEquality,
-    Definition,
-    Negation,
-    Conjunction,
-    Disjunction,
-    Implication,
-    Equivalence,
-    Existential,
-    Universal,
-}
+use colored::{ColoredString, Colorize};
 
-#[derive(Debug, Clone)]
-pub enum Literal {
-    Var(String),
-    Integer(isize),
-    Constant(String),
-    RelName(String, usize),
-    FuncName(String, usize),
-    FormName(String, usize),
-    Function(Box<Literal>, Vec<Literal>),
-}
-
-impl PartialEq for Literal {
-    fn eq(&self, other: &Self) -> bool {
-        use Literal::*;
-
-        match (self, other) {
-            (Var(value1), Var(value2)) => value1 == value2,
-            (Integer(value1), Integer(value2)) => value1 == value2,
-            (Constant(value1), Constant(value2)) => value1 == value2,
-            (RelName(s1, a1), RelName(s2, a2)) => s1 == s2 && a1 == a2,
-            (FuncName(s1, a1), FuncName(s2, a2)) => s1 == s2 && a1 == a2,
-            (FormName(s1, a1), FormName(s2, a2)) => s1 == s2 && a1 == a2,
-            (Function(boxli1, vec1), Function(boxli2, vec2)) => {
-                if boxli1 != boxli2 {
-                    return false;
-                }
-
-                if vec1.len() != vec2.len() {
-                    return false;
-                }
-
-                for i in 0..vec1.len() {
-                    if vec1[i] != vec2[i] {
-                        return false;
-                    }
-                }
-
-                true
-            }
-            (_, _) => false,
-        }
-    }
-}
-
-impl PartialOrd for Literal {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        use Literal::*;
-
-        // Integer < Constant < Var < FuncName < RelName < FormName < Function
-
-        match (self, other) {
-            (Integer(i1), Integer(i2)) => i1.partial_cmp(i2),
-            (Integer(_), _) => Some(Ordering::Less),
-            (_, Integer(_)) => Some(Ordering::Greater),
-            (Constant(s1), Constant(s2)) => s1.partial_cmp(s2),
-            (Constant(_), _) => Some(Ordering::Less),
-            (_, Constant(_)) => Some(Ordering::Greater),
-            (Var(s1), Var(s2)) => s1.partial_cmp(s2),
-            (Var(_), _) => Some(Ordering::Less),
-            (_, Var(_)) => Some(Ordering::Greater),
-            (FuncName(s1, i1), FuncName(s2, i2)) => {
-                match s1.cmp(s2) {
-                    Ordering::Less => Some(Ordering::Less),
-                    Ordering::Greater => Some(Ordering::Greater),
-                    Ordering::Equal => {
-                        if i1 != i2 {
-                            panic!("function name duplication!: f1: {}, f2: {}", self, other);
-                        } else {
-                            Some(Ordering::Equal)
-                        }
-                    },
-                }
-            },
-            (FuncName(_, _), _) => Some(Ordering::Less),
-            (_, FuncName(_, _)) => Some(Ordering::Greater),
-            (RelName(s1, i1), RelName(s2, i2)) => {
-                match s1.cmp(s2) {
-                    Ordering::Less => Some(Ordering::Less),
-                    Ordering::Greater => Some(Ordering::Greater),
-                    Ordering::Equal => {
-                        if i1 != i2 {
-                            panic!("relation name duplication!: f1: {}, f2: {}", self, other);
-                        } else {
-                            Some(Ordering::Equal)
-                        }
-                    },
-                }
-            },
-            (RelName(_, _), _) => Some(Ordering::Less),
-            (_, RelName(_, _)) => Some(Ordering::Greater),
-            (FormName(s1, i1), FormName(s2, i2)) => {
-                match s1.cmp(s2) {
-                    Ordering::Less => Some(Ordering::Less),
-                    Ordering::Greater => Some(Ordering::Greater),
-                    Ordering::Equal => {
-                        if i1 != i2 {
-                            panic!("relation name duplication!: f1: {}, f2: {}", self, other);
-                        } else {
-                            Some(Ordering::Equal)
-                        }
-                    },
-                }
-            },
-            (FormName(_, _), _) => Some(Ordering::Less),
-            (_, FormName(_, _)) => Some(Ordering::Greater),
-            (Function(n1, lis1), Function(n2, lis2)) => {
-                match n1.deref().partial_cmp(n2.deref()) {
-                    Some(Ordering::Less) | Some(Ordering::Greater) =>  n1.deref().partial_cmp(n2.deref()),
-                    Some(Ordering::Equal) => {
-                        if lis1.len() != lis2.len() {
-                            panic!("mismatched arity of fuctions: f1: {}, f2: {}", self, other);
-                        } else {
-                            let length = lis1.len();
-                            for i in 0..length {
-                               match lis1.get(i).unwrap().partial_cmp(lis2.get(i).unwrap()) {
-                                   Some(Ordering::Less) => Some(Ordering::Less),
-                                   Some(Ordering::Greater) => Some(Ordering::Greater),
-                                   _ => continue
-                               }
-                            }
-
-                            Some(Ordering::Equal)
-                        }
-                    },
-                    _ => unreachable!(),
-                }
-            }
-            _ => unreachable!()
-        }
-    }
-}
-
-impl Ord for Literal {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.partial_cmp(other).unwrap()
-    }
-}
-
-impl Eq for Literal {}
-
-impl Hash for Literal {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        use Literal::*;
-
-        match self {
-            Var(value) => {
-                value.hash(state);
-                self.typ().hash(state);
-            }
-            Integer(value) => {
-                value.hash(state);
-                self.typ().hash(state);
-            }
-            Constant(value) => {
-                value.hash(state);
-                self.typ().hash(state);
-            }
-            RelName(value, arity) => {
-                value.hash(state);
-                arity.hash(state);
-                self.typ().hash(state);
-            }
-            FuncName(value, arity) => {
-                value.hash(state);
-                arity.hash(state);
-                self.typ().hash(state);
-            }
-            FormName(value, arity) => {
-                value.hash(state);
-                arity.hash(state);
-                self.typ().hash(state);
-            }
-            Function(value, literals) => {
-                value.hash(state);
-
-                for literal in literals {
-                    literal.hash(state);
-                }
-            }
-        }
-    }
-}
-
-impl Display for Literal {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        match self {
-            Literal::Var(v) => write!(f, "'{}'", v.blue()),
-            Literal::Integer(i) => write!(f, "{}", i.to_string().blue()),
-            Literal::Constant(c) => write!(f, "'{}'", c.blue()),
-            Literal::RelName(r, _) => write!(f, "{}", r.red()), //[{}]", *r, a),
-            Literal::FuncName(r, _) => write!(f, "{}", r.red()), //[{}]", *r, a),
-            Literal::FormName(r, _) => write!(f, "{}", r.red()),
-            Literal::Function(a, others) => write!(
-                f,
-                "{}({})",
-                a.deref().to_string().red(),
-                others
-                    .iter()
-                    .map(|x| format!("{}", x).blue().to_string())
-                    .collect::<Vec<String>>()
-                    .join(",")
-            ),
-        }
-    }
-}
-
-impl Literal {
-    pub fn nvariable(v: &str) -> Literal {
-        Literal::Var(v.to_string())
-    }
-    pub fn ninteger(v: isize) -> Literal {
-        Literal::Integer(v)
-    }
-    pub fn nconstant(v: &str) -> Literal {
-        Literal::Constant(v.to_string())
-    }
-    pub fn nrelname(v: &str, a: usize) -> Literal {
-        Literal::RelName(v.to_string(), a)
-    }
-    pub fn nfuncname(v: &str, a: usize) -> Literal {
-        Literal::FuncName(v.to_string(), a)
-    }
-    pub fn nformname(v: &str, a: usize) -> Literal {
-        Literal::FormName(v.to_string(), a)
-    }
-
-    pub fn nfunction(func_name: &Literal, mut literals:Vec<Literal>) -> Option<Literal> {
-        let there_are_higher_symbols = literals.iter().any(|x| x.deref().is_higher_symbol());
-
-        match (func_name, there_are_higher_symbols) {
-            (Literal::FuncName(_, arity), false) => {
-                if literals.len() == *arity {
-                    // always sort !!
-                    literals.sort();
-                    Some(Literal::Function(Box::new(func_name.clone()), literals))
-                } else {
-                    None
-                }
-            }
-            (_, _) => None,
-        }
-    }
-
-    pub fn default_eval(&self) -> Grounded {
-        use Literal::*;
-
-        match self {
-            Var(s) | Constant(s) => Grounded::Word(s.clone()),
-            Integer(i) => Grounded::Number(*i),
-            _ => Grounded::Undefined,
-        }
-    }
-
-    pub fn typ(&self) -> Type {
-        use Literal::*;
-
-        match self {
-            Var(_) => Type::Variable,
-            Integer(_) => Type::Integer,
-            Constant(_) => Type::Constant,
-            RelName(_, _) => Type::RelName,
-            FuncName(_, _) => Type::FuncName,
-            Function(_, _) => Type::Function,
-            FormName(_, _) => Type::FormName,
-        }
-    }
-
-    pub fn name(&self) -> &str {
-        use Literal::*;
-
-        match self {
-            Var(s) | Constant(s) | RelName(s, _) | FuncName(s, _) | FormName(s, _) => s,
-            Integer(_) => "",
-            Function(li_box, _) => li_box.deref().name(),
-        }
-    }
-
-    pub fn vec_of_literals_to_str(v: &[Literal], formatting: bool) -> String {
-        let literals: Vec<String>;
-
-        if formatting {
-            literals = v
-                .iter()
-                .map(|x| format!("{}", x).blue().to_string())
-                .collect::<Vec<String>>();
-        } else {
-            literals = v.iter().map(|x| format!("{}", x)).collect::<Vec<String>>();
-        }
-
-        literals.join(",")
-    }
-
-    pub fn is_lower_symbol(&self) -> bool {
-        matches!(
-            self,
-            Literal::Var(_) | Literal::Constant(_) | Literal::Integer(_) | Literal::Function(_, _)
-        )
-    }
-
-    pub fn is_higher_symbol(&self) -> bool {
-        !self.is_lower_symbol()
-    }
-
-    pub fn arity(&self) -> usize {
-        match self {
-            Literal::Var(_)
-            | Literal::Constant(_)
-            | Literal::Integer(_)
-            | Literal::Function(_, _) => 0,
-            Literal::RelName(_, a) => *a,
-            Literal::FuncName(_, a) => *a,
-            Literal::FormName(_, a) => *a,
-        }
-    }
-}
+use crate::core::literal::Literal;
+use crate::core::types::Type::Equivalence;
+use crate::core::types::{ExpressionEval, LiteralEval, Type};
+use crate::mathsymbols::*;
 
 #[derive(Debug, Clone)]
 pub enum Expression {
@@ -382,7 +45,7 @@ impl Hash for Expression {
                 for literal in literals {
                     literal.hash(state);
                 }
-            },
+            }
             Definition(formname, vars, expr) => {
                 (Type::Definition).hash(state);
                 formname.hash(state);
@@ -392,56 +55,56 @@ impl Hash for Expression {
                 }
 
                 expr.deref().hash(state);
-            },
+            }
             BasicEquality(a, b) => {
                 (Type::BasicEquality).hash(state);
 
                 a.hash(state);
                 b.hash(state);
-            },
+            }
             PartialEquality(a, expr) => {
                 (Type::PartialEquality).hash(state);
 
                 a.hash(state);
                 expr.deref().hash(state);
-            },
+            }
             GeneralEquality(expr1, expr2) => {
                 (Type::GeneralEquality).hash(state);
 
                 expr1.deref().hash(state);
                 expr2.deref().hash(state);
-            },
+            }
             Not(expr) => {
                 (Type::Negation).hash(state);
 
                 expr.deref().hash(state);
-            },
+            }
             And(exprs) => {
                 (Type::Conjunction).hash(state);
 
                 for expr in exprs {
                     expr.hash(state);
                 }
-            },
+            }
             Or(exprs) => {
                 (Type::Disjunction).hash(state);
 
                 for expr in exprs {
                     expr.hash(state);
                 }
-            },
+            }
             Implies(expr1, expr2) => {
                 (Type::Implication).hash(state);
 
                 expr1.deref().hash(state);
                 expr2.deref().hash(state);
-            },
+            }
             Equivalent(expr1, expr2) => {
                 (Type::Equivalence).hash(state);
 
                 expr1.deref().hash(state);
                 expr2.deref().hash(state);
-            },
+            }
             Exists(literals, expr) => {
                 (Type::Existential).hash(state);
 
@@ -450,7 +113,7 @@ impl Hash for Expression {
                 }
 
                 expr.deref().hash(state);
-            },
+            }
             ForAll(literals, expr) => {
                 (Type::Existential).hash(state);
 
@@ -464,6 +127,71 @@ impl Hash for Expression {
     }
 }
 
+impl PartialEq for Expression {
+    fn eq(&self, other: &Self) -> bool {
+        use Expression::*;
+
+        match (self, other) {
+            (True, True) | (False, False) => true,
+            (Relation(li1, lis1), Relation(li2, lis2)) => {
+                if li1 == li2 {
+                    if lis1.len() == lis2.len() {
+                        for i in 0..(lis1.len()) {
+                            if lis1.get(i).unwrap() != lis2.get(i).unwrap() {
+                                return false;
+                            }
+                        }
+
+                        true
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            }
+            (BasicEquality(a1, b1), BasicEquality(a2, b2)) => a1 == a2 && b1 == b2,
+            (Not(expr1), Not(expr2)) => expr1.deref() == expr2.deref(),
+            (PartialEquality(a1, expr1), PartialEquality(a2, expr2)) => a1 == a2 && expr1 == expr2,
+            (GeneralEquality(expr11, expr12), GeneralEquality(expr21, expr22)) => {
+                expr11 == expr21 && expr12 == expr22
+            }
+            (Or(exprs1), Or(exprs2)) | (And(exprs1), And(exprs2)) => {
+                if exprs1.len() != exprs2.len() {
+                    false
+                } else {
+                    let equal_vectors = default_equality_of_vectors(exprs1, exprs2, exprs1.len());
+
+                    equal_vectors
+                }
+            }
+            (Implies(expr11, expr12), Implies(expr21, expr22))
+            | (Equivalent(expr11, expr12), Equivalent(expr21, expr22)) => {
+                expr11 == expr21 && expr12 == expr22
+            }
+            (Exists(lis1, expr1), Exists(lis2, expr2))
+            | (ForAll(lis1, expr1), ForAll(lis2, expr2)) => {
+                if lis1.len() != lis2.len() {
+                    return false;
+                }
+
+                let equal_vectors = default_equality_of_vectors(lis1, lis2, lis1.len());
+
+                equal_vectors && (expr1 == expr2)
+            }
+            (Definition(li1, lis1, expr1), Definition(li2, lis2, expr2)) => {
+                li1 == li2
+                    && lis1.len() == lis2.len()
+                    && default_equality_of_vectors(lis1, lis2, lis1.len())
+                    && expr1 == expr2
+            }
+            (_, _) => false,
+        }
+    }
+}
+
+impl Eq for Expression {}
+
 impl PartialOrd for Expression {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         use Expression::*;
@@ -473,7 +201,16 @@ impl PartialOrd for Expression {
             (False, False) => Some(Ordering::Equal),
             (False, _) => Some(Ordering::Less),
             (_, False) => Some(Ordering::Greater),
-            (_, _) => todo!()
+            (True, True) => Some(Ordering::Equal),
+            (True, _) => Some(Ordering::Less),
+            (_, True) => Some(Ordering::Greater),
+            (Relation(li1, lis1), Relation(li2, lis2)) => {},
+            (Relation(_, _), _) => Some(Ordering::Less),
+            (_, Relation(_, _)) => Some(Ordering::Greater),
+            (BasicEquality(a1, b1), BasicEquality(a2, b2)) => {},
+            (BasicEquality(_, _), _) => Some(Ordering::Less),
+            (_, BasicEquality(_, _)) => Some(Ordering::Greater),
+            (_, _) => todo!(),
         }
     }
 }
@@ -640,7 +377,6 @@ impl Expression {
 
     pub fn to_pure_propositional(&self) -> Option<Expression> {
         use Expression::*;
-        
 
         match self {
             True => Some(True),
@@ -654,7 +390,9 @@ impl Expression {
             }
             Definition(_, _, _) => None,
             BasicEquality(_, _) | PartialEquality(_, _) | GeneralEquality(_, _) => None,
-            Not(a) => a.to_pure_propositional().map(|a_pure| Not(Box::new(a_pure))),
+            Not(a) => a
+                .to_pure_propositional()
+                .map(|a_pure| Not(Box::new(a_pure))),
             And(exprs) | Or(exprs) => {
                 let exprs_pure = exprs
                     .iter()
@@ -761,12 +499,12 @@ impl Expression {
     }
 
     pub fn ngeneralequality(a: Expression, b: Expression) -> Expression {
-
         match a.cmp(&b) {
-            Ordering::Less | Ordering::Equal => Expression::GeneralEquality(Box::new(a), Box::new(b)),
+            Ordering::Less | Ordering::Equal => {
+                Expression::GeneralEquality(Box::new(a), Box::new(b))
+            }
             Ordering::Greater => Expression::GeneralEquality(Box::new(b), Box::new(a)),
         }
-
     }
 
     pub fn nnot(a: Expression) -> Expression {
@@ -779,7 +517,7 @@ impl Expression {
             _ => {
                 expressions.sort();
                 Some(Expression::And(expressions))
-            },
+            }
         }
     }
 
@@ -789,17 +527,15 @@ impl Expression {
             _ => {
                 expressions.sort();
                 Some(Expression::Or(expressions))
-            },
+            }
         }
     }
 
     pub fn nbasicequality(a: &Literal, b: &Literal) -> Expression {
-
         match a.cmp(b) {
             Ordering::Less | Ordering::Equal => Expression::BasicEquality(a.clone(), b.clone()),
             _ => Expression::BasicEquality(b.clone(), a.clone()),
         }
-
     }
 
     pub fn nimplies(a: Expression, b: Expression) -> Expression {
@@ -807,12 +543,10 @@ impl Expression {
     }
 
     pub fn nequivalent(a: Expression, b: Expression) -> Expression {
-
         match a.cmp(&b) {
             Ordering::Less | Ordering::Equal => Expression::Equivalent(Box::new(a), Box::new(b)),
             _ => Expression::Equivalent(Box::new(b), Box::new(a)),
         }
-
     }
 
     pub fn nforall(literals: &[Literal], expression: Expression) -> Expression {
@@ -829,9 +563,13 @@ impl Expression {
         Expression::Exists(inner_literals, Box::new(expression))
     }
 
-    pub fn default_eval(&self, literal_eval: &LiteralEval, expression_eval: &ExpressionEval) -> Option<bool> {
-        use Literal::*;
+    pub fn default_eval(
+        &self,
+        literal_eval: &LiteralEval,
+        expression_eval: &ExpressionEval,
+    ) -> Option<bool> {
         use Expression::*;
+        use Literal::*;
 
         match self {
             True => Some(true),
@@ -842,20 +580,21 @@ impl Expression {
             PartialEquality(_, _) => None,
             GeneralEquality(a, b) | Implies(a, b) | Equivalent(a, b) => {
                 match (expression_eval(a.deref()), expression_eval(b.deref())) {
-                    (Some(a_eval), Some(b_eval)) => {
-                        match self {
-                            GeneralEquality(_, _) => Some(a_eval == b_eval),
-                            Implies(_, _) => Some(!a_eval || b_eval),
-                            Equivalent(_, _) => Some((!a_eval || b_eval) && (a_eval || !b_eval)),
-                            _ => unreachable!(),
-                        }
+                    (Some(a_eval), Some(b_eval)) => match self {
+                        GeneralEquality(_, _) => Some(a_eval == b_eval),
+                        Implies(_, _) => Some(!a_eval || b_eval),
+                        Equivalent(_, _) => Some((!a_eval || b_eval) && (a_eval || !b_eval)),
+                        _ => unreachable!(),
                     },
                     (_, _) => None,
                 }
-            },
+            }
             Not(a) => expression_eval(a.deref()).map(|x| !x),
             And(exprs) | Or(exprs) => {
-                let evaluated = exprs.iter().map(|x| expression_eval(x)).collect::<Vec<Option<bool>>>();
+                let evaluated = exprs
+                    .iter()
+                    .map(|x| expression_eval(x))
+                    .collect::<Vec<Option<bool>>>();
                 let all_some = evaluated.iter().all(|x| x.is_some());
 
                 if !all_some {
@@ -864,10 +603,10 @@ impl Expression {
                     match self {
                         And(_) => Some(evaluated.iter().fold(true, |accum, x| accum && x.unwrap())),
                         Or(_) => Some(evaluated.iter().fold(false, |accum, x| accum || x.unwrap())),
-                        _ => unreachable!()
+                        _ => unreachable!(),
                     }
                 }
-            },
+            }
             Exists(_, _) | ForAll(_, _) => None,
         }
     }
@@ -894,7 +633,7 @@ impl Expression {
                 res.insert(self.clone());
 
                 Some(res)
-            },
+            }
             Definition(_, _, expr) => expr.deref().atoms(),
             BasicEquality(_, _) => {
                 let mut res: HashSet<Expression> = HashSet::new();
@@ -902,7 +641,7 @@ impl Expression {
                 res.insert(self.clone());
 
                 Some(res)
-            },
+            }
             PartialEquality(_, expr) => expr.deref().atoms(),
             GeneralEquality(expr1, expr2) | Implies(expr1, expr2) | Equivalent(expr1, expr2) => {
                 let mut atoms1_op = expr1.deref().atoms();
@@ -913,12 +652,12 @@ impl Expression {
                         atoms1.extend_from_slice(atoms2);
 
                         Some(atoms1.clone())
-                    },
+                    }
                     (Some(_), None) => atoms1_op,
                     (None, Some(_)) => atoms2_op,
                     (None, None) => None,
                 }
-            },
+            }
             Not(expr) => expr.deref().atoms(),
             And(exprs) | Or(exprs) => {
                 let mut inner_atoms: HashSet<Expression> = HashSet::new();
@@ -933,9 +672,9 @@ impl Expression {
 
                 match inner_atoms.len() {
                     0 => None,
-                    _ => Some(inner_atoms)
+                    _ => Some(inner_atoms),
                 }
-            },
+            }
             Exists(_, expr) | ForAll(_, expr) => expr.deref().atoms(),
         }
     }
@@ -956,12 +695,12 @@ impl Expression {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub enum Grounded {
-    Word(String),
-    Number(isize),
-    Undefined,
-}
+pub fn default_equality_of_vectors<T: PartialEq + Eq>(v1: &[T], v2: &[T], length: usize) -> bool {
+    for i in 0..length {
+        if v1.get(i).unwrap() != v2.get(i).unwrap() {
+            return false;
+        }
+    }
 
-pub type LiteralEval= fn(&Literal) -> Grounded;
-pub type ExpressionEval = fn(&Expression) -> Option<bool>;
+    true
+}

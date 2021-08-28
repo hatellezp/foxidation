@@ -1,8 +1,4 @@
-
 use std::fs;
-
-
-
 
 use crate::parser::cli::Cli;
 
@@ -18,7 +14,6 @@ extern crate pest_derive;
 use structopt::StructOpt;
 
 // colors in the terminal
-
 
 fn main() {
     println!("Hello, world!");
