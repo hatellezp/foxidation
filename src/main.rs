@@ -44,6 +44,14 @@ fn main() {
                 item.is_pure_propositional()
             );
 
+            let atoms = item.atoms();
+
+            if atoms.is_some() {
+                for item in atoms.unwrap().iter() {
+                    println!("  {}", item);
+                }
+            }
+
             if item.is_pure_propositional() {
                 println!("    pure: {}", item.to_pure_propositional().unwrap());
             }
