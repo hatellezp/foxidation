@@ -7,7 +7,9 @@ use pest::Parser;
 
 use crate::core::expression::Expression;
 use crate::core::literal::Literal;
-use crate::core::types::Type;
+use crate::core::types::{Type, Result};
+
+
 
 #[derive(Parser)]
 #[grammar = "parser/grammar.pest"]
@@ -17,6 +19,8 @@ pub struct GrammarParser;
 
 // literals are added to the context when created, no need to add them after
 pub fn parse_file(file: &str) -> (HashSet<Literal>, Vec<Expression>) {
+    use crate::core::types::Result::*;
+
     fn parse_statement(
         pair: Pair<Rule>,
         context: &mut HashSet<Literal>,
@@ -140,7 +144,7 @@ pub fn parse_file(file: &str) -> (HashSet<Literal>, Vec<Expression>) {
                     {
                         let new_literal_op = Literal::nfunction(literal, literals);
 
-                        if let Some(new_literal) = new_literal_op {
+                        if let Result::Ok(new_literal) = new_literal_op {
                             context.insert(new_literal.clone());
 
                             return (Some(vec![new_literal]), None);
@@ -225,7 +229,7 @@ pub fn parse_file(file: &str) -> (HashSet<Literal>, Vec<Expression>) {
 
                         let new_expression_op = Expression::nrelation(literal, &terms.unwrap());
 
-                        if let Some(new_expression) = new_expression_op {
+                        if let Result::Ok(new_expression) = new_expression_op {
                             return (None, Some(vec![new_expression]));
                         } else {
                             panic!("could not parse expression: <{}>", pair_str);
@@ -284,7 +288,7 @@ pub fn parse_file(file: &str) -> (HashSet<Literal>, Vec<Expression>) {
                     } else {
                         let new_expression = Expression::nrelation(&relname, &tuple);
 
-                        if new_expression.is_none() {
+                        if !new_expression.is_ok() {
                             panic!("could not parse expression: <{}>", inner_pair_str);
                         }
 
@@ -382,7 +386,7 @@ pub fn parse_file(file: &str) -> (HashSet<Literal>, Vec<Expression>) {
                     _ => {
                         let new_expression_op = Expression::nand(expressions);
 
-                        if new_expression_op.is_none() {
+                        if !new_expression_op.is_ok() {
                             panic!("could not parse the AND expression: <{}>", pair_str);
                         }
 
@@ -412,7 +416,7 @@ pub fn parse_file(file: &str) -> (HashSet<Literal>, Vec<Expression>) {
                     _ => {
                         let new_expression_op = Expression::nor(expressions);
 
-                        if new_expression_op.is_none() {
+                        if !new_expression_op.is_ok() {
                             panic!("could not parse the OR expression: <{}>", pair_str);
                         }
 

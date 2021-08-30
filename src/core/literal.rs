@@ -122,7 +122,6 @@ impl PartialOrd for Literal {
                 }
                 _ => unreachable!(),
             },
-            _ => unreachable!(),
         }
     }
 }

@@ -1,5 +1,4 @@
 use crate::core::literal::Literal;
-use crate::core::symbols::Expression;
 use crate::core::expression::Expression;
 
 #[derive(Debug, Hash, Copy, Clone, Eq, PartialEq)]
@@ -29,6 +28,26 @@ pub enum Type {
 pub enum Result<T> {
     Ok(T),
     Err(String),
+}
+
+impl<T> Result<T> {
+    pub fn is_ok(&self) -> bool {
+        matches!(self, Result::Ok(_))
+    }
+
+    pub fn unwrap(self) -> T {
+        match self {
+            Result::Ok(a) => a,
+            _ => panic!("ERROR: attempt to unwrap error!")
+        }
+    }
+
+    pub fn unwrap_as_ref(&self) -> &T {
+        match self {
+            Result::Ok(a) => a,
+            _ => panic!("ERROR: attempt to unwrap error!")
+        }
+    }
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
