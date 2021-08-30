@@ -1,5 +1,5 @@
-use crate::core::literal::Literal;
 use crate::core::expression::Expression;
+use crate::core::literal::Literal;
 
 #[derive(Debug, Hash, Copy, Clone, Eq, PartialEq)]
 pub enum Type {
@@ -38,24 +38,24 @@ impl<T> Result<T> {
     pub fn unwrap(self) -> T {
         match self {
             Result::Ok(a) => a,
-            _ => panic!("ERROR: attempt to unwrap error!")
+            _ => panic!("ERROR: attempt to unwrap error!"),
         }
     }
 
     pub fn unwrap_as_ref(&self) -> &T {
         match self {
             Result::Ok(a) => a,
-            _ => panic!("ERROR: attempt to unwrap error!")
+            _ => panic!("ERROR: attempt to unwrap error!"),
         }
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Hash)]
 pub enum Grounded {
     Word(String),
     Number(isize),
     Undefined,
 }
 
-pub type LiteralEval = fn(&Literal) -> Grounded;
-pub type ExpressionEval = fn(&Expression) -> Option<bool>;
+pub type LiteralEval = dyn Fn(&Literal) -> Grounded;
+pub type ExpressionEval = dyn Fn(&Expression) -> Option<bool>;

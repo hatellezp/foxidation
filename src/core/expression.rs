@@ -8,12 +8,15 @@ use std::ops::Deref;
 
 use colored::{ColoredString, Colorize};
 
+use crate::core::filter::Filter;
+
 use crate::core::literal::Literal;
+use crate::core::types;
 use crate::core::types::Type::Equivalence;
 use crate::core::types::{ExpressionEval, LiteralEval, Type};
 use crate::mathsymbols::*;
-use crate::core::types;
 use std::panic::panic_any;
+use std::fmt;
 
 #[derive(Debug, Clone)]
 pub enum Expression {
@@ -206,31 +209,25 @@ impl PartialOrd for Expression {
             (True, True) => Some(Ordering::Equal),
             (True, _) => Some(Ordering::Less),
             (_, True) => Some(Ordering::Greater),
-            (Relation(li1, lis1), Relation(li2, lis2)) => {
-                match li1.cmp(li2) {
-                    Ordering::Less => Some(Ordering::Less),
-                    Ordering::Greater => Some(Ordering::Greater),
-                    _ => default_partial_cmp_of_vectors(lis1, lis2),
-                }
+            (Relation(li1, lis1), Relation(li2, lis2)) => match li1.cmp(li2) {
+                Ordering::Less => Some(Ordering::Less),
+                Ordering::Greater => Some(Ordering::Greater),
+                _ => default_partial_cmp_of_vectors(lis1, lis2),
             },
             (Relation(_, _), _) => Some(Ordering::Less),
             (_, Relation(_, _)) => Some(Ordering::Greater),
-            (BasicEquality(a1, b1), BasicEquality(a2, b2)) => {
-                match a1.cmp(a2) {
-                    Ordering::Greater => b1.partial_cmp(b2),
-                    _ => a1.partial_cmp(a2),
-                }
+            (BasicEquality(a1, b1), BasicEquality(a2, b2)) => match a1.cmp(a2) {
+                Ordering::Greater => b1.partial_cmp(b2),
+                _ => a1.partial_cmp(a2),
             },
             (BasicEquality(_, _), _) => Some(Ordering::Less),
             (_, BasicEquality(_, _)) => Some(Ordering::Greater),
             (Not(expr1), Not(expr2)) => expr1.partial_cmp(expr2),
             (Not(_), _) => Some(Ordering::Less),
             (_, Not(_)) => Some(Ordering::Greater),
-            (PartialEquality(li1, expr1), PartialEquality(li2, expr2)) => {
-                match li1.cmp(li2) {
-                    Ordering::Greater => expr1.partial_cmp(expr2),
-                    _ => li1.partial_cmp(li2),
-                }
+            (PartialEquality(li1, expr1), PartialEquality(li2, expr2)) => match li1.cmp(li2) {
+                Ordering::Greater => expr1.partial_cmp(expr2),
+                _ => li1.partial_cmp(li2),
             },
             (PartialEquality(_, _), _) => Some(Ordering::Less),
             (_, PartialEquality(_, _)) => Some(Ordering::Greater),
@@ -239,7 +236,7 @@ impl PartialOrd for Expression {
                     Some(Ordering::Greater) => expr12.partial_cmp(expr22),
                     _ => expr11.partial_cmp(expr21),
                 }
-            },
+            }
             (GeneralEquality(_, _), _) => Some(Ordering::Less),
             (_, GeneralEquality(_, _)) => Some(Ordering::Greater),
             (Or(exprs1), Or(exprs2)) => default_partial_cmp_of_vectors(exprs1, exprs2),
@@ -253,7 +250,7 @@ impl PartialOrd for Expression {
                     Some(Ordering::Greater) => expr12.partial_cmp(expr22),
                     _ => expr11.partial_cmp(expr21),
                 }
-            },
+            }
             (Implies(_, _), _) => Some(Ordering::Less),
             (_, Implies(_, _)) => Some(Ordering::Greater),
             (Equivalent(expr11, expr12), Equivalent(expr21, expr22)) => {
@@ -261,7 +258,7 @@ impl PartialOrd for Expression {
                     Some(Ordering::Greater) => expr12.partial_cmp(expr22),
                     _ => expr11.partial_cmp(expr21),
                 }
-            },
+            }
             (Equivalent(_, _), _) => Some(Ordering::Less),
             (_, Equivalent(_, _)) => Some(Ordering::Greater),
             (Exists(lis1, expr1), Exists(lis2, expr2)) => {
@@ -269,7 +266,7 @@ impl PartialOrd for Expression {
                     Some(Ordering::Equal) => expr1.partial_cmp(expr2),
                     _ => default_partial_cmp_of_vectors(lis1, lis2),
                 }
-            },
+            }
             (Exists(_, _), _) => Some(Ordering::Less),
             (_, Exists(_, _)) => Some(Ordering::Greater),
             (ForAll(lis1, expr1), ForAll(lis2, expr2)) => {
@@ -277,19 +274,15 @@ impl PartialOrd for Expression {
                     Some(Ordering::Equal) => expr1.partial_cmp(expr2),
                     _ => default_partial_cmp_of_vectors(lis1, lis2),
                 }
-            },
+            }
             (ForAll(_, _), _) => Some(Ordering::Less),
             (_, ForAll(_, _)) => Some(Ordering::Greater),
-            (Definition(li1, lis1, expr1), Definition(li2, lis2, expr2)) => {
-                match li1.cmp(li2) {
-                    Ordering::Equal => {
-                        match default_partial_cmp_of_vectors(lis1, lis2) {
-                            Some(Ordering::Equal) => expr1.partial_cmp(expr2),
-                            _ => default_partial_cmp_of_vectors(lis1, lis2),
-                        }
-                    },
-                    _ => li1.partial_cmp(li2)
-                }
+            (Definition(li1, lis1, expr1), Definition(li2, lis2, expr2)) => match li1.cmp(li2) {
+                Ordering::Equal => match default_partial_cmp_of_vectors(lis1, lis2) {
+                    Some(Ordering::Equal) => expr1.partial_cmp(expr2),
+                    _ => default_partial_cmp_of_vectors(lis1, lis2),
+                },
+                _ => li1.partial_cmp(li2),
             },
             // (Definition(_, _, _), _) => Some(Ordering::Less),
             // (_, Definition(_, _, _)) => Some(Ordering::Greater),
@@ -464,8 +457,8 @@ impl Expression {
     }
 
     pub fn to_pure_propositional(&self) -> types::Result<Expression> {
-        use Expression::*;
         use types::Result::*;
+        use Expression::*;
 
         match self {
             True => Ok(True),
@@ -474,11 +467,20 @@ impl Expression {
                 if relname.arity() == 0 && relname.typ() == Type::RelName {
                     Ok(Relation(relname.clone(), vec![]))
                 } else {
-                    Err(format!("ERROR: pure propositional relations are of arity 0: <{}>", relname))
+                    Err(format!(
+                        "ERROR: pure propositional relations are of arity 0: <{}>",
+                        relname
+                    ))
                 }
             }
-            Definition(_, _, _) => Err(format!("ERROR: definition expressions cannot be set to propositional: <{}>", self)),
-            BasicEquality(_, _) | PartialEquality(_, _) | GeneralEquality(_, _) => Err(format!("ERROR: equality expressions cannot be set to propositional: <{}>", self)),
+            Definition(_, _, _) => Err(format!(
+                "ERROR: definition expressions cannot be set to propositional: <{}>",
+                self
+            )),
+            BasicEquality(_, _) | PartialEquality(_, _) | GeneralEquality(_, _) => Err(format!(
+                "ERROR: equality expressions cannot be set to propositional: <{}>",
+                self
+            )),
             Not(a) => {
                 let a_pure = a.to_pure_propositional();
 
@@ -486,8 +488,7 @@ impl Expression {
                     Ok(a_ok) => Ok(Not(Box::new(a_ok))),
                     _ => a_pure,
                 }
-
-            },
+            }
             And(exprs) | Or(exprs) => {
                 let exprs_pure = exprs
                     .iter()
@@ -495,7 +496,10 @@ impl Expression {
                     .collect::<Vec<types::Result<Expression>>>();
 
                 if exprs_pure.iter().any(|x| !x.is_ok()) {
-                    Err(format!("ERROR: some expression failed to be set to pure propositional: <{:?}>", exprs))
+                    Err(format!(
+                        "ERROR: some expression failed to be set to pure propositional: <{:?}>",
+                        exprs
+                    ))
                 } else {
                     match self {
                         And(_) => Ok(And(exprs_pure
@@ -520,9 +524,15 @@ impl Expression {
                         let or_pure_op = Expression::nor(vec![not_a_pure, b_pure]);
 
                         or_pure_op
-                    },
-                    (Err(_), _) => Err(format!("ERROR: left side cannot be set to pure propositional: <{}>", a)),
-                    (_, Err(_)) => Err(format!("ERROR: right side cannot be set to pure propositional: <{}>", b)),
+                    }
+                    (Err(_), _) => Err(format!(
+                        "ERROR: left side cannot be set to pure propositional: <{}>",
+                        a
+                    )),
+                    (_, Err(_)) => Err(format!(
+                        "ERROR: right side cannot be set to pure propositional: <{}>",
+                        b
+                    )),
                 }
             }
             Equivalent(a, b) => {
@@ -545,7 +555,10 @@ impl Expression {
                     (_, _) => Err(format!("ERROR: left or right size failed to be set to pure propositional: <{:?}>, <{:?}>", a, b)),
                 }
             }
-            Exists(_, _) | ForAll(_, _) => Err(format!("ERROR: quantifier expressions cannot be set to pure propositional: <{}>", self)),
+            Exists(_, _) | ForAll(_, _) => Err(format!(
+                "ERROR: quantifier expressions cannot be set to pure propositional: <{}>",
+                self
+            )),
         }
     }
 
@@ -570,11 +583,20 @@ impl Expression {
 
                     types::Result::Ok(Expression::Relation(rel_name.clone(), inner_literals))
                 } else {
-                    types::Result::Err(format!("ERROR: mismatch arity of declared relation with literals:<{}> : <{:?}>", rel_name, literals))
+                    types::Result::Err(format!(
+                        "ERROR: mismatch arity of declared relation with literals:<{}> : <{:?}>",
+                        rel_name, literals
+                    ))
                 }
             }
-            (Literal::RelName(_, _), true) => types::Result::Err(format!("ERROR: cannot have higher symbol in a relation statement: <{:?}>", literals)),
-            (_, _) => types::Result::Err(format!("ERROR: literal must be relation name on relation statement: <{}>", rel_name)),
+            (Literal::RelName(_, _), true) => types::Result::Err(format!(
+                "ERROR: cannot have higher symbol in a relation statement: <{:?}>",
+                literals
+            )),
+            (_, _) => types::Result::Err(format!(
+                "ERROR: literal must be relation name on relation statement: <{}>",
+                rel_name
+            )),
         }
     }
 
@@ -603,7 +625,10 @@ impl Expression {
 
     pub fn nand(mut expressions: Vec<Expression>) -> types::Result<Expression> {
         match expressions.iter().any(|x| x.typ() == Type::Definition) {
-            true => types::Result::Err(format!("ERROR: definitions cannot be inside 'and' expressions: <{:?}>", &expressions)),
+            true => types::Result::Err(format!(
+                "ERROR: definitions cannot be inside 'and' expressions: <{:?}>",
+                &expressions
+            )),
             _ => {
                 // ALWAYS SORT
                 expressions.sort();
@@ -614,7 +639,10 @@ impl Expression {
 
     pub fn nor(mut expressions: Vec<Expression>) -> types::Result<Expression> {
         match expressions.iter().any(|x| x.typ() == Type::Definition) {
-            true => types::Result::Err(format!("ERROR: definitions cannot be inside 'and' expressions: <{:?}>", &expressions)),
+            true => types::Result::Err(format!(
+                "ERROR: definitions cannot be inside 'and' expressions: <{:?}>",
+                &expressions
+            )),
             _ => {
                 // ALWAYS SORT
                 expressions.sort();
@@ -655,6 +683,7 @@ impl Expression {
         Expression::Exists(inner_literals, Box::new(expression))
     }
 
+    // TODO: come back here and verify
     pub fn default_eval(
         &self,
         literal_eval: &LiteralEval,
@@ -704,14 +733,49 @@ impl Expression {
     }
 
     pub fn is_atomic(&self) -> bool {
-        match self {
-            Expression::Relation(_, _) => true,
-            _ => false,
-        }
+        matches!(self.typ(), Type::Relation)
     }
 
-    pub fn subexpressions(&self) -> Vec<Expression> {
-        vec![]
+    pub fn sub_expressions(&self) -> Vec<Expression> {
+        use Expression::*;
+
+        fn subepxressions_helper(
+            expr: &Expression,
+            mut trailing: Vec<Expression>,
+        ) -> Vec<Expression> {
+            trailing.push(expr.clone());
+
+            match expr {
+                True | False | Relation(_, _) | BasicEquality(_, _) => trailing,
+                Definition(_, _, sub_expr)
+                | PartialEquality(_, sub_expr)
+                | Not(sub_expr)
+                | Exists(_, sub_expr)
+                | ForAll(_, sub_expr) => subepxressions_helper(sub_expr, trailing),
+                GeneralEquality(sub_expr1, sub_expr2)
+                | Implies(sub_expr1, sub_expr2)
+                | Equivalent(sub_expr1, sub_expr2) => {
+                    let trailing1 = subepxressions_helper(sub_expr1, vec![]);
+                    let trailing2 = subepxressions_helper(sub_expr2, vec![]);
+
+                    trailing.extend(trailing1);
+                    trailing.extend(trailing2);
+
+                    trailing
+                }
+                And(sub_exprs) | Or(sub_exprs) => {
+                    for sub_expr in sub_exprs {
+                        let sub_trailing = subepxressions_helper(sub_expr, vec![]);
+
+                        trailing.extend(sub_trailing);
+                    }
+
+                    trailing
+                }
+            }
+        }
+
+        subepxressions_helper(self, vec![])
     }
 
     pub fn atoms(&self) -> Option<HashSet<Expression>> {
@@ -719,7 +783,7 @@ impl Expression {
 
         match self {
             True | False => None,
-            Relation(_, _) => {
+            Relation(_, _) | BasicEquality(_, _) => {
                 let mut res: HashSet<Expression> = HashSet::new();
 
                 res.insert(self.clone());
@@ -727,21 +791,15 @@ impl Expression {
                 Some(res)
             }
             Definition(_, _, expr) => expr.deref().atoms(),
-            BasicEquality(_, _) => {
-                let mut res: HashSet<Expression> = HashSet::new();
-
-                res.insert(self.clone());
-
-                Some(res)
-            }
             PartialEquality(_, expr) => expr.deref().atoms(),
-            GeneralEquality(expr1, expr2) | Implies(expr1, expr2) | Equivalent(expr1, expr2) => {
+            GeneralEquality(expr1, expr2)
+            | Implies(expr1, expr2)
+            | Equivalent(expr1, expr2) => {
                 let mut atoms1_op = expr1.deref().atoms();
                 let mut atoms2_op = expr2.deref().atoms();
 
                 match (atoms1_op.as_mut(), atoms2_op.as_mut()) {
                     (Some(mut atoms1), Some(atoms2)) => {
-
                         for item in atoms2.iter() {
                             atoms1.insert(item.clone());
                         }
@@ -774,15 +832,62 @@ impl Expression {
         }
     }
 
-    pub fn pure_propositional_satisfiability_naive(&self) -> Option<bool> {
-        unimplemented!()
+    // this function uses the intbits crate
+    pub fn define_true_values_for_pure_propositional(&self) -> Option<Filter> {
+        let self_atoms = self.atoms();
+       if self.is_pure_propositional() && self_atoms.is_some() && !self_atoms.as_ref().unwrap().is_empty() {
+          let filter = Filter::new(self_atoms.as_ref().unwrap().len());
+
+           Some(filter)
+       } else {
+           None
+       }
+    }
+
+    pub fn pure_propositional_satisfiability_naive(&self, print_true_table: bool) -> Option<bool> {
+        use types::Result::*;
+
+        let self_pure_res = self.to_pure_propositional();
+
+        match self_pure_res {
+            Err(_) => None,
+            Ok(self_pure) => {
+                let atoms_op = self_pure.atoms();
+
+                if let Some(atoms) = atoms_op {
+                    let atoms_vec = atoms.iter().map(|x| x.clone()).collect::<Vec<Expression>>();
+                    let atoms_number = atoms_vec.len();
+                    let global_filter = Filter::new(atoms_number);
+
+                    let create_valuation = |bools: &[bool]| {
+                        let valuation = |expr: &Expression| {
+                            for i in 0..atoms_number {
+                                if atoms_vec.get(i).unwrap() == expr {
+                                    return Some(bools[i])
+                                }
+                            }
+
+                            None
+                        };
+
+                        valuation
+                    };
+
+                    let a: ExpressionEval = create_valuation(global_filter.filter());
+
+                    None
+                } else {
+                    None
+                }
+            }
+        }
     }
 }
 
 // the type &[T] possess a field for the length of the subjecent array
 pub fn default_equality_of_vectors<T: PartialEq + Eq>(v1: &[T], v2: &[T]) -> bool {
     if v1.len() != v2.len() {
-        return false
+        return false;
     }
 
     for i in 0..(v1.len()) {
@@ -808,3 +913,6 @@ pub fn default_partial_cmp_of_vectors<T: PartialOrd>(v1: &[T], v2: &[T]) -> Opti
 
     v1.len().partial_cmp(&v2.len())
 }
+
+
+

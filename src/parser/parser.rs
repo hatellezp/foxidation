@@ -7,9 +7,7 @@ use pest::Parser;
 
 use crate::core::expression::Expression;
 use crate::core::literal::Literal;
-use crate::core::types::{Type, Result};
-
-
+use crate::core::types::{Result, Type};
 
 #[derive(Parser)]
 #[grammar = "parser/grammar.pest"]
