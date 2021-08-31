@@ -13,9 +13,8 @@ use crate::core::filter::Filter;
 use crate::core::literal::Literal;
 use crate::core::types;
 use crate::core::types::Type::Equivalence;
-use crate::core::types::{ExpressionEval, LiteralEval, Type};
+use crate::core::types::{ExpressionEval, LiteralEval, Type, Grounded};
 use crate::mathsymbols::*;
-use std::panic::panic_any;
 use std::fmt;
 
 #[derive(Debug, Clone)]
@@ -684,13 +683,15 @@ impl Expression {
     }
 
     // TODO: come back here and verify
-    pub fn default_eval(
+    pub fn default_eval<L,E>(
         &self,
-        literal_eval: &LiteralEval,
-        expression_eval: &ExpressionEval,
-    ) -> Option<bool> {
+        literal_eval: &L,
+        expression_eval: &E,
+    ) -> Option<bool> where L: Fn(&Literal) -> Grounded, E: Fn(&Expression) -> Option<bool>{
         use Expression::*;
         use Literal::*;
+
+        println!("calling eval with expression : {:?}", self);
 
         match self {
             True => Some(true),
@@ -700,7 +701,7 @@ impl Expression {
             BasicEquality(a, b) => Some(literal_eval(a) == literal_eval(b)),
             PartialEquality(_, _) => None,
             GeneralEquality(a, b) | Implies(a, b) | Equivalent(a, b) => {
-                match (expression_eval(a.deref()), expression_eval(b.deref())) {
+                match (a.default_eval(literal_eval, expression_eval), b.default_eval(literal_eval, expression_eval)) {
                     (Some(a_eval), Some(b_eval)) => match self {
                         GeneralEquality(_, _) => Some(a_eval == b_eval),
                         Implies(_, _) => Some(!a_eval || b_eval),
@@ -710,11 +711,12 @@ impl Expression {
                     (_, _) => None,
                 }
             }
-            Not(a) => expression_eval(a.deref()).map(|x| !x),
+            Not(a) => a.default_eval(literal_eval, expression_eval).map(|x| !x),
             And(exprs) | Or(exprs) => {
+
                 let evaluated = exprs
                     .iter()
-                    .map(|x| expression_eval(x))
+                    .map(|x| x.default_eval(literal_eval, expression_eval))
                     .collect::<Vec<Option<bool>>>();
                 let all_some = evaluated.iter().all(|x| x.is_some());
 
@@ -832,18 +834,6 @@ impl Expression {
         }
     }
 
-    // this function uses the intbits crate
-    pub fn define_true_values_for_pure_propositional(&self) -> Option<Filter> {
-        let self_atoms = self.atoms();
-       if self.is_pure_propositional() && self_atoms.is_some() && !self_atoms.as_ref().unwrap().is_empty() {
-          let filter = Filter::new(self_atoms.as_ref().unwrap().len());
-
-           Some(filter)
-       } else {
-           None
-       }
-    }
-
     pub fn pure_propositional_satisfiability_naive(&self, print_true_table: bool) -> Option<bool> {
         use types::Result::*;
 
@@ -857,10 +847,10 @@ impl Expression {
                 if let Some(atoms) = atoms_op {
                     let atoms_vec = atoms.iter().map(|x| x.clone()).collect::<Vec<Expression>>();
                     let atoms_number = atoms_vec.len();
-                    let global_filter = Filter::new(atoms_number);
+                    let mut global_filter = Filter::new(atoms_number);
 
-                    let create_valuation = |bools: &[bool]| {
-                        let valuation = |expr: &Expression| {
+                    let mut create_valuation =  {
+                        let mut valuation = |expr: &Expression, bools: &[bool]| {
                             for i in 0..atoms_number {
                                 if atoms_vec.get(i).unwrap() == expr {
                                     return Some(bools[i])
@@ -873,9 +863,26 @@ impl Expression {
                         valuation
                     };
 
-                    let a: ExpressionEval = create_valuation(global_filter.filter());
+                    let literal_valuation = Literal::default_eval;
 
-                    None
+                    while !global_filter.is_done() {
+
+                        println!("state of the filter: {}", &global_filter);
+
+                        let mut inner_valuation = create_valuation;
+                        let mut partial = |expr: &Expression| inner_valuation(expr, global_filter.filter());
+
+                        let result = self_pure.default_eval(&literal_valuation, &partial);
+
+                        if result.is_some() && result.unwrap() && !print_true_table {
+                            return Some(true)
+                        }
+
+                        global_filter.next();
+                        continue;
+                    }
+
+                    Some(false)
                 } else {
                     None
                 }

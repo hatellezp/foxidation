@@ -71,17 +71,16 @@ fn main() {
             println!("  ---------------");
 
             if item.is_pure_propositional() {
-                println!("    pure: {}", item.to_pure_propositional().unwrap());
+                let item_pure =  item.to_pure_propositional().unwrap();
+                println!("    pure: {}", &item_pure);
+
+
+                let result = item_pure.pure_propositional_satisfiability_naive(false);
+
+                println!("    is satisfiable?: {:?}", result);
             }
         }
     }
 
 
-   let mut fil = Filter::new(5);
-
-    while !fil.is_done() {
-        println!("{}: {:?}", fil.filter_index(), fil.filter());
-
-        fil.next();
-    }
 }
