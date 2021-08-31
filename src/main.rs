@@ -32,43 +32,15 @@ fn main() {
 
         let (context, expressions) = parser::parser::parse_file(&unparsed_file);
 
-        println!("===============================\nliterals\n===============================\n");
-        for item in context.iter() {
-            println!("{:?}: {}", item, item);
-        }
-
-        println!("------------------------------------------------------------------------");
-
-        println!("===============================\nexpressions\n===============================\n");
         for item in expressions.iter() {
             println!("===========================================================================");
 
 
             println!(
-                "{}, is pure propositional: {}",
+                "{} is pure propositional: {}",
                 item,
                 item.is_pure_propositional()
             );
-
-            let atoms = item.atoms();
-
-            if atoms.is_some() {
-                println!("  -----");
-                println!("  atoms");
-                for inner_item in atoms.unwrap().iter() {
-                    println!("  - {}", inner_item);
-                }
-                println!("  -----");
-            }
-
-            let sub_exprs = item.sub_expressions();
-
-            println!("  ---------------");
-            println!("  sub_expressions");
-            for inner_item in sub_exprs {
-                println!("  {}", inner_item);
-            }
-            println!("  ---------------");
 
             if item.is_pure_propositional() {
                 let item_pure =  item.to_pure_propositional().unwrap();

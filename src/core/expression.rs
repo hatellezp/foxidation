@@ -691,7 +691,7 @@ impl Expression {
         use Expression::*;
         use Literal::*;
 
-        println!("calling eval with expression : {:?}", self);
+        // println!("calling eval with expression : {:?}", self);
 
         match self {
             True => Some(true),
@@ -836,8 +836,15 @@ impl Expression {
 
     pub fn pure_propositional_satisfiability_naive(&self, print_true_table: bool) -> Option<bool> {
         use types::Result::*;
+        use Expression::*;
 
         let self_pure_res = self.to_pure_propositional();
+
+        match self_pure_res {
+            Ok(True) => return Some(true),
+            Ok(False) => return Some(false),
+            _ => (),
+        }
 
         match self_pure_res {
             Err(_) => None,
@@ -865,9 +872,13 @@ impl Expression {
 
                     let literal_valuation = Literal::default_eval;
 
-                    while !global_filter.is_done() {
+                    let mut next_is_not_good = false;
 
-                        println!("state of the filter: {}", &global_filter);
+                    while !next_is_not_good {
+
+                        next_is_not_good = global_filter.is_done();
+
+                        // println!("state of the filter: {}", &global_filter);
 
                         let mut inner_valuation = create_valuation;
                         let mut partial = |expr: &Expression| inner_valuation(expr, global_filter.filter());
