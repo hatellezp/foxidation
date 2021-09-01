@@ -76,7 +76,11 @@ R() implies T();
 T() implies ((T() and S()) or R())
 ```
 
-You have to possible command, a silent one to find **satisfiability**:
+Note that:
+* **ONLY** relations and boolean connectives can be used in boolean formulas;
+* **All** relations must be of arity **0**.
+
+You have two possible ways of finding satisfiability, a silent one to find **satisfiability**:
 
 ```./foxidation --filename test_sat4.txt --bool-sat --silent```
 
@@ -109,6 +113,7 @@ You should get:
 
 Note that the expression ```forall var_x, var_y var_x = var_y;``` is not a boolean
 expression and thus is **ignored**.
+
 By not putting the silent ```--silent``` argument you can demand a more verbose
 output:
 ```commandline
