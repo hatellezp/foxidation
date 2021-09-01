@@ -78,7 +78,7 @@ T() implies ((T() and S()) or R())
 
 Note that:
 * **ONLY** relations and boolean connectives can be used in boolean formulas;
-* **All** relations must be of arity **0**.
+* **ALL** relations must be of arity **0**.
 
 You have two possible ways of finding satisfiability, a silent one to find **satisfiability**:
 
