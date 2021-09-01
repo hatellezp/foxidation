@@ -70,7 +70,7 @@ relation: S,0;
 forall var_x, var_y var_x = var_y;
 
 R() or not R();
-not S() or S();
+not S() and S();
 
 R() implies T();
 T() implies ((T() and S()) or R())
@@ -98,8 +98,8 @@ You should get:
 | is satisfiable?: true
 ------------------------
 ------------------------
-| expression: S() ⋁ ¬S()
-| is satisfiable?: true
+| expression: S() ⋀ ¬S()
+| is satisfiable?: false
 ------------------------
 ------------------------
 | expression: R() ⇒ T()
@@ -109,6 +109,7 @@ You should get:
 | expression: T() ⇒ (R() ⋁ (S() ⋀ T()))
 | is satisfiable?: true
 ---------------------------------------
+
 ```
 
 Note that the expression ```forall var_x, var_y var_x = var_y;``` is not a boolean
@@ -141,18 +142,18 @@ output:
 
 
 --------------
-| S() ⋁ ¬S() |
+| S() ⋀ ¬S() |
 --------------
 ==============================================
-| S()         | ¬S()         | S() ⋁ ¬S()    |
+| S()         | ¬S()         | S() ⋀ ¬S()    |
 ----------------------------------------------
-| false       | true         | true          |
-| true        | false        | true          |
+| false       | true         | false         |
+| true        | false        | false         |
 ==============================================
 ----------------------------
-| is satisfiable?:   true  |
-| is a tautology?:   true  |
-| is unsatisfiable?: false |
+| is satisfiable?:   false |
+| is a tautology?:   false |
+| is unsatisfiable?: true  |
 ----------------------------
 
 
@@ -181,12 +182,12 @@ output:
 | R()         | S()         | T()         | S() ⋀ T()    | R() ⋁ (S() ⋀ T()) | T() ⇒ (R() ⋁ (S() ⋀ T())) |
 ----------------------------------------------------------------------------------------------------------
 | false       | false       | false       | false        | false             | true                      |
-| false       | false       | true        | false        | false             | false                     |
-| false       | true        | false       | false        | false             | true                      |
 | true        | false       | false       | false        | true              | true                      |
-| false       | true        | true        | true         | true              | true                      |
-| true        | false       | true        | false        | true              | true                      |
+| false       | true        | false       | false        | false             | true                      |
+| false       | false       | true        | false        | false             | false                     |
 | true        | true        | false       | false        | true              | true                      |
+| true        | false       | true        | false        | true              | true                      |
+| false       | true        | true        | true         | true              | true                      |
 | true        | true        | true        | true         | true              | true                      |
 ==========================================================================================================
 ----------------------------
