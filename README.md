@@ -47,9 +47,9 @@ You have an order of precedence for the operators:
 * fourth level:
   * or expressions: ```false or R()```;
 * fifth level:
-  * equivalence statements: ```S(const_a) implies S(const_b)```;
+  * equivalence statements: ```S(const_a) EQUIVALENT S(const_b)```;
 * sixth level:
-  * implication statements: ```R() EQUIVALENT not R()```;
+  * implication statements: ```R() implies not R()```;
 * seventh level:
   * existential expressions: ```exists var_x S(var_x)```;
   * universal expressions: ```FORALL var_x, var_y Other_relation(var_x, var_y) implies Other_relation(var_y, var_x)```;
