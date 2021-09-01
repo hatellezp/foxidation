@@ -24,7 +24,7 @@ Something to note:
 * constants *always* have the prefix **const_**; and
 * number must be atomic: "333333" is ok, "333_333" is not.
 
-After that you can define almost anything that correct in first order logic:
+After that you can define almost anything that is correct in first order logic:
 ``` 
 R() implies Other_relation(2,var_x);
 f(4) = f(const_a);
