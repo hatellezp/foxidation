@@ -21,3 +21,7 @@ paw = "1.0"
 
 # colors for the terminal
 colored = "*"
+
+# for string formatting
+pad = "0.1.6"
+unicode-segmentation = "1.8.0"

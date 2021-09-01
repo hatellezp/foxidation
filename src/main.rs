@@ -66,27 +66,34 @@ fn main() {
                         .unwrap(); //_or(false);
 
 
-                    println!("expression: {}", item_pure);
+                    let pl = item_pure.printing_length();
+                    let pl = "| ".graphemes(true).count() + pl + 2;
+
+                    let uline: String = vec!["-"; pl].join("");
+
+                    println!("{}", &uline);
+                    println!("| {} |", item_pure);
+                    println!("{}", uline);
 
                     println!("{}", item_pure.pure_propositional_string_truth_table());
 
 
-                    let overview_length = "| is satisfiable: false".graphemes(true).count();
+                    let overview_length = "| is satisfiable: false".graphemes(true).count() + 3;
 
-                    let mut satis = format!("| is satisfiable?: {}", sat_result).pad_to_width(overview_length);
+                    let mut satis = format!("| is satisfiable?:   {}", sat_result).pad_to_width(overview_length);
                     satis.push_str(" |");
 
-                    let mut tauto = format!("| is satisfiable?: {}", sat_result).pad_to_width(overview_length);
+                    let mut tauto = format!("| is a tautology?:   {}", tau_result).pad_to_width(overview_length);
                     tauto.push_str(" |");
 
-                    let mut unsat = format!("| is satisfiable?: {}", sat_result).pad_to_width(overview_length);
+                    let mut unsat = format!("| is unsatisfiable?: {}", unsat_result).pad_to_width(overview_length);
                     unsat.push_str(" |");
 
-                    println!("-------------------------");
+                    println!("----------------------------");
                     println!("{}", satis);
                     println!("{}", tauto);
                     println!("{}", unsat);
-                    println!("-------------------------");
+                    println!("----------------------------");
 
                     println!("\n");
                 }

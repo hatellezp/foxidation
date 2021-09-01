@@ -1091,7 +1091,8 @@ impl Expression {
         let atoms = self.atoms();
 
         if atoms.is_none() || atoms.as_ref().unwrap().is_empty() {
-            panic!("nothing to print in degenerate expression!!!")
+            // panic!("nothing to print in degenerate expression!!!")
+            return format!("expression: {} is degenerate, nothing to analyse", self)
         }
 
         let atoms_vec = atoms
@@ -1216,7 +1217,7 @@ impl Expression {
         final_table.push_str(&table);
 
         final_table.push_str(&up_line);
-        final_table.push('\n');
+        // final_table.push('\n');
 
         final_table
     }

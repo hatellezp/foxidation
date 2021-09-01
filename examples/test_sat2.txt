@@ -1,0 +1,15 @@
+relation: R,0;
+relation: S,0;
+relation: T,0;
+relation: P,0;
+
+
+true implies R();
+R() implies true;
+
+S() or not S();
+S() and not S();
+
+(R() and S()) implies (R() or S());
+
+((R() implies S()) implies R()) implies R();

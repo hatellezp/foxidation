@@ -1,0 +1,27 @@
+relation: R,0;
+relation: S,0;
+relation: P,0;
+
+true;
+false;
+R();
+
+false and true;
+false or true;
+true or R();
+true and R();
+false and R();
+true or R();
+
+R() or not R();
+R() and not R();
+
+R() and S();
+R() and not S();
+
+R() or S();
+R() or not S();
+
+R() implies (S() and not P());
+
+not (R() or S());
