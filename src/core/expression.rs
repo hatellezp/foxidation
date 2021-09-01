@@ -1273,6 +1273,17 @@ impl Expression {
             }
         }
     }
+
+    pub fn is_guarded(&self) -> bool {false}
+    pub fn variables(&self) -> Vec<Literal> {vec![]}
+    pub fn bound_variables(&self) -> Vec<Literal> {vec![]}
+    pub fn free_variables(&self) -> Vec<Literal> {vec![]}
+
+
+    pub fn printing_length(&self) -> usize {
+        self.to_string().graphemes(true).count() - self.count_color_characters()
+    }
+
 }
 
 // the type &[T] possess a field for the length of the subjecent array
