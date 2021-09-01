@@ -242,6 +242,22 @@ impl Literal {
         }
     }
 
+    pub fn count_color_characters(&self) -> usize {
+        use Literal::*;
+
+        match self {
+            RelName(_, _) | FuncName(_, _) | FormName(_, _) => 23,
+            Var(_) | Integer(_) | Constant(_) => 23, // TODO: verify that blue counts this
+            Function(li, lis) => {
+                li.count_color_characters()
+                    + lis
+                        .iter()
+                        .fold(0, |accum, x| accum + x.count_color_characters())
+            }
+            _ => 5,
+        }
+    }
+
     pub fn default_eval(&self) -> Grounded {
         use Literal::*;
 

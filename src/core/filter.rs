@@ -1,5 +1,5 @@
-use std::fmt::{Display, Formatter};
 use std::fmt;
+use std::fmt::{Display, Formatter};
 
 pub struct Filter {
     length: usize,
@@ -197,6 +197,3 @@ impl Display for Filter {
         write!(f, "{}", s)
     }
 }
-
-
-

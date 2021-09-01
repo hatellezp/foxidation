@@ -2,8 +2,6 @@ use std::fs;
 
 use crate::parser::cli::Cli;
 
-use intbits::Bits;
-
 mod core;
 mod mathsymbols;
 mod parser;
@@ -13,8 +11,8 @@ extern crate pest;
 extern crate pest_derive;
 
 // for cli interface, need to import it so the interface module works
-use structopt::StructOpt;
 use crate::core::filter::Filter;
+use structopt::StructOpt;
 
 // colors in the terminal
 
@@ -35,7 +33,6 @@ fn main() {
         for item in expressions.iter() {
             println!("===========================================================================");
 
-
             println!(
                 "{} is pure propositional: {}",
                 item,
@@ -43,16 +40,25 @@ fn main() {
             );
 
             if item.is_pure_propositional() {
-                let item_pure =  item.to_pure_propositional().unwrap();
+                println!("{}", item.pure_propositional_string_truth_table());
+            }
+
+            if item.is_pure_propositional() {
+                let item_pure = item.to_pure_and_push().unwrap();
                 println!("    pure: {}", &item_pure);
 
+                let sat_result = item_pure.pure_propositional_satisfiability_naive().unwrap(); //_or(false);
+                let tau_result = item_pure.pure_propositional_tautology_naive().unwrap(); //_or(false);
+                let unsat_result = item_pure
+                    .pure_propositional_unsatisfiability_naive()
+                    .unwrap(); //_or(false);
 
-                let result = item_pure.pure_propositional_satisfiability_naive(false);
+                println!("{}", item_pure.pure_propositional_string_truth_table());
 
-                println!("    is satisfiable?: {:?}", result);
+                println!("    is satisfiable?: {}", sat_result);
+                println!("    is a tautology?: {}", tau_result);
+                println!("    is unsatsifiab?: {}", unsat_result);
             }
         }
     }
-
-
 }

@@ -1,10 +1,13 @@
-use std::cmp::Ordering;
+use std::cmp::{max, Ordering};
 use std::collections::HashSet;
 use std::fmt::Result;
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::iter::FromIterator;
 use std::ops::Deref;
+
+use pad::PadStr;
+use unicode_segmentation::UnicodeSegmentation;
 
 use colored::{ColoredString, Colorize};
 
@@ -13,7 +16,7 @@ use crate::core::filter::Filter;
 use crate::core::literal::Literal;
 use crate::core::types;
 use crate::core::types::Type::Equivalence;
-use crate::core::types::{ExpressionEval, LiteralEval, Type, Grounded};
+use crate::core::types::{ExpressionEval, Grounded, LiteralEval, Type};
 use crate::mathsymbols::*;
 use std::fmt;
 
@@ -322,6 +325,20 @@ impl Expression {
         }
     }
 
+    pub fn is_true(&self) -> bool {
+        match self {
+            Expression::True => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_false(&self) -> bool {
+        match self {
+            Expression::False => true,
+            _ => false,
+        }
+    }
+
     pub fn is_complex_expression(&self) -> bool {
         use Expression::*;
 
@@ -501,14 +518,27 @@ impl Expression {
                     ))
                 } else {
                     match self {
-                        And(_) => Ok(And(exprs_pure
-                            .iter()
-                            .map(|x| x.unwrap_as_ref().clone())
-                            .collect::<Vec<Expression>>())),
-                        Or(_) => Ok(Or(exprs_pure
-                            .iter()
-                            .map(|x| x.unwrap_as_ref().clone())
-                            .collect::<Vec<Expression>>())),
+                        And(_) => {
+                            // this is a form of early reduction
+                            if exprs_pure.iter().any(|x| x.unwrap_as_ref().is_false()) {
+                                return Ok(False);
+                            }
+
+                            Ok(And(exprs_pure
+                                .iter()
+                                .map(|x| x.unwrap_as_ref().clone())
+                                .collect::<Vec<Expression>>()))
+                        }
+                        Or(_) => {
+                            if exprs_pure.iter().any(|x| x.unwrap_as_ref().is_true()) {
+                                return Ok(True);
+                            }
+
+                            Ok(Or(exprs_pure
+                                .iter()
+                                .map(|x| x.unwrap_as_ref().clone())
+                                .collect::<Vec<Expression>>()))
+                        }
                         _ => unreachable!(),
                     }
                 }
@@ -682,12 +712,117 @@ impl Expression {
         Expression::Exists(inner_literals, Box::new(expression))
     }
 
+    pub fn push_down_negation(&self) -> Expression {
+        use types::Result::*;
+        use Expression::*;
+
+        match self {
+            True | False | BasicEquality(_, _) | Relation(_, _) => self.clone(),
+            Definition(li, lis, expr) => {
+                Definition(li.clone(), lis.clone(), Box::new(expr.push_down_negation()))
+            }
+            PartialEquality(li, expr) => {
+                PartialEquality(li.clone(), Box::new(expr.push_down_negation()))
+            }
+            GeneralEquality(expr1, expr2) => GeneralEquality(
+                Box::new(expr1.push_down_negation()),
+                Box::new(expr2.push_down_negation()),
+            ),
+            Implies(expr1, expr2) => Implies(
+                Box::new(expr1.push_down_negation()),
+                Box::new(expr2.push_down_negation()),
+            ),
+            Equivalent(expr1, expr2) => Equivalent(
+                Box::new(expr1.push_down_negation()),
+                Box::new(expr2.push_down_negation()),
+            ),
+            And(exprs) => And(exprs
+                .iter()
+                .map(|x| x.push_down_negation())
+                .collect::<Vec<Expression>>()),
+            Or(exprs) => Or(exprs
+                .iter()
+                .map(|x| x.push_down_negation())
+                .collect::<Vec<Expression>>()),
+            Exists(lis, expr) => Exists(lis.clone(), Box::new(expr.push_down_negation())),
+            ForAll(lis, expr) => ForAll(lis.clone(), Box::new(expr.push_down_negation())),
+            Not(expr) => {
+                match expr.deref() {
+                    True => False,
+                    False => True,
+                    Not(inner_expr) => inner_expr.deref().clone(),
+                    ForAll(lis, inner_expr) => {
+                        let new_a = inner_expr.deref().clone();
+                        let new_a = Expression::nnot(new_a);
+                        let new_a = new_a.push_down_negation();
+
+                        Exists(lis.clone(), Box::new(new_a))
+                    }
+                    Exists(lis, inner_expr) => {
+                        let new_a = inner_expr.deref().clone();
+                        let new_a = Expression::nnot(new_a);
+                        let new_a = new_a.push_down_negation();
+
+                        ForAll(lis.clone(), Box::new(new_a))
+                    }
+                    Implies(expr1, expr2) => {
+                        // a => b
+                        // not a or b
+                        // a and not b
+                        let new_a = Expression::nnot(expr1.deref().clone());
+                        let new_a = new_a.push_down_negation();
+                        let new_b = Expression::nnot(expr2.deref().clone());
+                        let new_b = new_a.push_down_negation();
+
+                        let and_expr_res = Expression::nand(vec![new_a, new_b]);
+
+                        match and_expr_res {
+                            Ok(and_expr) => and_expr,
+                            Err(s) => panic!("something happended: {}", s),
+                        }
+                    }
+                    Equivalent(expr1, expr2) => {
+                        let equiv1 =
+                            Expression::nequivalent(expr1.deref().clone(), expr2.deref().clone());
+                        let equiv2 =
+                            Expression::nequivalent(expr2.deref().clone(), expr1.deref().clone());
+
+                        let equiv1 = Expression::nnot(equiv1).push_down_negation();
+                        let equiv2 = Expression::nnot(equiv2).push_down_negation();
+
+                        Or(vec![equiv1, equiv2])
+                    }
+                    And(exprs) => Or(exprs
+                        .iter()
+                        .map(|x| Expression::nnot(x.clone()).push_down_negation())
+                        .collect::<Vec<Expression>>()),
+                    Or(exprs) => And(exprs
+                        .iter()
+                        .map(|x| Expression::nnot(x.clone()).push_down_negation())
+                        .collect::<Vec<Expression>>()),
+                    _ => self.clone(),
+                }
+            }
+        }
+    }
+
+    pub fn to_pure_and_push(&self) -> types::Result<Expression> {
+        use types::Result::*;
+
+        let res: types::Result<Expression> = self.to_pure_propositional();
+
+        match res {
+            Ok(expr) => Ok(expr.push_down_negation()),
+            _ => res,
+        }
+    }
+
     // TODO: come back here and verify
-    pub fn default_eval<L,E>(
-        &self,
-        literal_eval: &L,
-        expression_eval: &E,
-    ) -> Option<bool> where L: Fn(&Literal) -> Grounded, E: Fn(&Expression) -> Option<bool>{
+    pub fn default_eval<L, E>(&self, literal_eval: &L, expression_eval: &E) -> Option<bool>
+    where
+        L: Fn(&Literal) -> Grounded,
+        E: Fn(&Expression) -> Option<bool>,
+    {
         use Expression::*;
         use Literal::*;
 
@@ -701,7 +836,10 @@ impl Expression {
             BasicEquality(a, b) => Some(literal_eval(a) == literal_eval(b)),
             PartialEquality(_, _) => None,
             GeneralEquality(a, b) | Implies(a, b) | Equivalent(a, b) => {
-                match (a.default_eval(literal_eval, expression_eval), b.default_eval(literal_eval, expression_eval)) {
+                match (
+                    a.default_eval(literal_eval, expression_eval),
+                    b.default_eval(literal_eval, expression_eval),
+                ) {
                     (Some(a_eval), Some(b_eval)) => match self {
                         GeneralEquality(_, _) => Some(a_eval == b_eval),
                         Implies(_, _) => Some(!a_eval || b_eval),
@@ -713,7 +851,6 @@ impl Expression {
             }
             Not(a) => a.default_eval(literal_eval, expression_eval).map(|x| !x),
             And(exprs) | Or(exprs) => {
-
                 let evaluated = exprs
                     .iter()
                     .map(|x| x.default_eval(literal_eval, expression_eval))
@@ -794,9 +931,7 @@ impl Expression {
             }
             Definition(_, _, expr) => expr.deref().atoms(),
             PartialEquality(_, expr) => expr.deref().atoms(),
-            GeneralEquality(expr1, expr2)
-            | Implies(expr1, expr2)
-            | Equivalent(expr1, expr2) => {
+            GeneralEquality(expr1, expr2) | Implies(expr1, expr2) | Equivalent(expr1, expr2) => {
                 let mut atoms1_op = expr1.deref().atoms();
                 let mut atoms2_op = expr2.deref().atoms();
 
@@ -834,11 +969,30 @@ impl Expression {
         }
     }
 
-    pub fn pure_propositional_satisfiability_naive(&self, print_true_table: bool) -> Option<bool> {
+    pub fn pure_propositional_tautology_naive(&self) -> Option<bool> {
+        self.pure_propositional_satisfiability_naive_all(true, false)
+    }
+
+    pub fn pure_propositional_unsatisfiability_naive(&self) -> Option<bool> {
+        match self.pure_propositional_satisfiability_naive_all(false, false) {
+            None => None,
+            Some(t) => Some(!t),
+        }
+    }
+
+    pub fn pure_propositional_satisfiability_naive(&self) -> Option<bool> {
+        self.pure_propositional_satisfiability_naive_all(false, false)
+    }
+
+    pub fn pure_propositional_satisfiability_naive_all(
+        &self,
+        search_for_tautology: bool,
+        print_true_table: bool,
+    ) -> Option<bool> {
         use types::Result::*;
         use Expression::*;
 
-        let self_pure_res = self.to_pure_propositional();
+        let self_pure_res = self.to_pure_and_push();
 
         match self_pure_res {
             Ok(True) => return Some(true),
@@ -856,11 +1010,11 @@ impl Expression {
                     let atoms_number = atoms_vec.len();
                     let mut global_filter = Filter::new(atoms_number);
 
-                    let mut create_valuation =  {
+                    let mut create_valuation = {
                         let mut valuation = |expr: &Expression, bools: &[bool]| {
                             for i in 0..atoms_number {
                                 if atoms_vec.get(i).unwrap() == expr {
-                                    return Some(bools[i])
+                                    return Some(bools[i]);
                                 }
                             }
 
@@ -874,29 +1028,248 @@ impl Expression {
 
                     let mut next_is_not_good = false;
 
-                    while !next_is_not_good {
+                    let mut disjuction_results = false;
+                    let mut conjunction_results = true;
 
+                    while !next_is_not_good {
                         next_is_not_good = global_filter.is_done();
 
                         // println!("state of the filter: {}", &global_filter);
 
                         let mut inner_valuation = create_valuation;
-                        let mut partial = |expr: &Expression| inner_valuation(expr, global_filter.filter());
+                        let mut partial =
+                            |expr: &Expression| inner_valuation(expr, global_filter.filter());
 
                         let result = self_pure.default_eval(&literal_valuation, &partial);
 
-                        if result.is_some() && result.unwrap() && !print_true_table {
-                            return Some(true)
+                        if result.is_none() {
+                            panic!(
+                                "expression is baldy redefined or partial valuation corrputed!!!"
+                            );
+                        }
+
+                        let result = result.unwrap();
+
+                        disjuction_results = disjuction_results || result;
+                        conjunction_results = conjunction_results && result;
+
+                        if search_for_tautology && !result {
+                            return Some(false);
+                        }
+
+                        if !search_for_tautology && result {
+                            return Some(true);
                         }
 
                         global_filter.next();
                         continue;
                     }
 
-                    Some(false)
+                    if search_for_tautology && conjunction_results {
+                        Some(true)
+                    } else if search_for_tautology && !conjunction_results {
+                        Some(false)
+                    } else if conjunction_results {
+                        Some(true)
+                    } else if !conjunction_results {
+                        Some(false)
+                    } else {
+                        None
+                    }
                 } else {
                     None
                 }
+            }
+        }
+    }
+
+    pub fn pure_propositional_string_truth_table(&self) -> String {
+        if !self.is_pure_propositional() {
+            panic!("tried to create truth table of not a propositional expression!!!")
+        }
+
+        let atoms = self.atoms();
+
+        if atoms.is_none() || atoms.as_ref().unwrap().is_empty() {
+            panic!("nothing to print in degenerate expression!!!")
+        }
+
+        let atoms_vec = atoms
+            .unwrap()
+            .iter()
+            .map(|x| x.clone())
+            .collect::<Vec<Expression>>();
+
+        let atoms_number = atoms_vec.len();
+        let mut global_filter = Filter::new(atoms_number);
+
+        let mut create_valuation = {
+            let mut valuation = |expr: &Expression, bools: &[bool]| {
+                for i in 0..atoms_number {
+                    if atoms_vec.get(i).unwrap() == expr {
+                        return Some(bools[i]);
+                    }
+                }
+
+                None
+            };
+
+            valuation
+        };
+
+        let literal_valuation = Literal::default_eval;
+
+        let mut sub_exprs = self.sub_expressions();
+
+        // sort and remove duplicates
+        sub_exprs.sort();
+        sub_exprs.dedup();
+        sub_exprs.sort_by(|x, y| {
+            x.to_string()
+                .graphemes(true)
+                .count()
+                .cmp(&y.to_string().graphemes(true).count())
+        });
+
+        let sub_exprs_length = sub_exprs
+            .iter()
+            .map(|x| x.to_string().graphemes(true).count() - x.count_color_characters())
+            .collect::<Vec<usize>>();
+        let global_vectors_length = sub_exprs.len();
+        let minimal_length = 9_usize;
+
+        let mut table = String::new();
+        let mut first_line = String::new();
+
+        let mut column_lenghts: Vec<usize> = Vec::new();
+
+        first_line.push('|');
+        for i in 0..global_vectors_length {
+            let sub_expr = sub_exprs.get(i).unwrap();
+
+            let mut addition = format!(" {}", sub_expr).pad_to_width(
+                sub_expr.count_color_characters() + minimal_length - (sub_exprs_length[i] - 1),
+            );
+
+            column_lenghts
+                .push(addition.graphemes(true).count() - sub_expr.count_color_characters());
+
+            addition.push_str(" |");
+            first_line.push_str(&addition);
+        }
+        first_line.push('\n');
+
+        let mut next_is_not_good = false;
+
+        let mut line_length: Option<usize> = None;
+
+        while !next_is_not_good {
+            next_is_not_good = global_filter.is_done();
+
+            let mut inner_valuation = create_valuation;
+            let mut partial = |expr: &Expression| inner_valuation(expr, global_filter.filter());
+
+            let mut line = String::new();
+
+            line.push('|');
+            for i in 0..global_vectors_length {
+                let sub_expr = sub_exprs.get(i).unwrap();
+                let sub_expr_len = sub_exprs_length[i];
+
+                let result = sub_expr.default_eval(&literal_valuation, &partial);
+
+                if result.is_none() {
+                    panic!("this sub expression gave a non result: <{}>", sub_expr);
+                }
+
+                let result = result.unwrap();
+                let mut addition = format!(" {}", result).pad_to_width(column_lenghts[i]);
+                addition.push_str(" |");
+
+
+                line.push_str(&addition);
+            }
+
+            if let None = line_length {
+                line_length = Some(line.graphemes(true).count())
+            }
+
+            line.push('\n');
+            table.push_str(&line);
+
+            global_filter.next();
+            continue;
+        }
+
+        let up_line: String = vec!["="; line_length.unwrap()].join("");
+        let in_line: String = vec!["-"; line_length.unwrap()].join("");
+
+        let mut final_table = String::new();
+
+        final_table.push_str(&up_line);
+        final_table.push('\n');
+
+        final_table.push_str(&first_line);
+        final_table.push_str(&in_line);
+
+        final_table.push('\n');
+        final_table.push_str(&table);
+
+        final_table.push_str(&up_line);
+        final_table.push('\n');
+
+        final_table
+    }
+
+    pub fn count_color_characters(&self) -> usize {
+        use Expression::*;
+        // False < True < Relation < Basic < Not < Partial < General < Or < And < Implies < Equivalent < Exists < ForAll < Definition
+
+        // let red_pad = 23;
+        let yellow_pad = 9;
+        let magenta_pad = 23;
+        let green_pad = 9_usize;
+        // let blue_pad = 23_usize;
+
+        match self {
+            True | False => green_pad,
+            Relation(li, lis) => {
+                li.count_color_characters()
+                    + lis
+                        .iter()
+                        .fold(0, |accum, x| accum + x.count_color_characters())
+            }
+            BasicEquality(a, b) => {
+                yellow_pad + a.count_color_characters() + b.count_color_characters()
+            }
+            Not(a) => yellow_pad + a.count_color_characters(),
+            PartialEquality(a, b) => {
+                yellow_pad + a.count_color_characters() + b.count_color_characters()
+            }
+            GeneralEquality(a, b) | Implies(a, b) | Equivalent(a, b) => {
+                yellow_pad + a.count_color_characters() + b.count_color_characters()
+            }
+            Or(exprs) | And(exprs) => {
+                yellow_pad * (if exprs.is_empty() { 0 } else { exprs.len() - 1 })
+                    + exprs
+                        .iter()
+                        .fold(0, |accum, x| accum + x.count_color_characters())
+            }
+            // TODO: verify length of quantification colorized
+            Exists(lis, expr) | ForAll(lis, expr) => {
+                magenta_pad
+                    + lis
+                        .iter()
+                        .fold(0, |accum, x| accum + x.count_color_characters())
+                    + expr.count_color_characters()
+            }
+            Definition(li, lis, expr) => {
+                magenta_pad
+                    + li.count_color_characters()
+                    + lis
+                        .iter()
+                        .fold(0, |accum, x| accum + x.count_color_characters())
+                    + expr.count_color_characters()
             }
         }
     }
@@ -931,6 +1304,3 @@ pub fn default_partial_cmp_of_vectors<T: PartialOrd>(v1: &[T], v2: &[T]) -> Opti
 
     v1.len().partial_cmp(&v2.len())
 }
-
-
-
