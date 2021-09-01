@@ -1,5 +1,5 @@
 ## Description
-This executable/library should mainly two things:
+This executable/library should do mainly two things:
 * a boolean satisfiability solver (not the best, but not naive either)
 * a reasoner for the [Guarded Fragment](https://en.wikipedia.org/wiki/Guarded_logic) of First Order Logic
 
