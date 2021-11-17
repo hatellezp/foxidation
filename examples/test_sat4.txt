@@ -5,7 +5,7 @@ relation: S,0;
 forall var_x, var_y var_x = var_y;
 
 R() or not R();
-not S() or S();
+not S() and S();
 
 R() implies T();
 T() implies ((T() and S()) or R());

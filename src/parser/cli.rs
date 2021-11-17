@@ -16,7 +16,7 @@ pub struct Cli {
 
     #[structopt(
         short,long,
-        help="decides the boolean satisfiabily of all pure propositional expression in the file"
+        help="decides the boolean satisfiability of all pure propositional expression in the file"
     )]
     pub bool_sat: bool,
 

@@ -1,0 +1,17 @@
+relation :  R,2;
+relation : S,4;
+relation: T,0;
+
+T();
+not T();
+
+R(2,4);
+S(const_a, 3,5,2);
+
+R(4, 2) AND S(1,2,3,4);
+
+R = { (2, 4), (const_b, 12), (var_x, var_other_var) };
+
+(R(4,5) OR true AND False) AND false or False;
+
+FORALL var_x, var_y R(var_x, var_y) implies (EXISTS var_u, var_v S(var_u, var_v, var_x, var_y) AND R(const_b, 44));

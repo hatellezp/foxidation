@@ -1279,6 +1279,7 @@ impl Expression {
     pub fn variables(&self) -> Vec<Literal> {vec![]}
     pub fn bound_variables(&self) -> Vec<Literal> {vec![]}
     pub fn free_variables(&self) -> Vec<Literal> {vec![]}
+    pub fn reduce(&mut self) {}
 
 
     pub fn printing_length(&self) -> usize {
